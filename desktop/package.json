@@ -1,0 +1,48 @@
+{
+  "name": "media-studio",
+  "productName": "Media Studio",
+  "version": "0.1.0",
+  "description": "Desktop video studio: Claude CLI + MCP (Google Flow, Canva, Voicebox) + FFmpeg",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env MS_DEV_URL=http://localhost:5173 electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.mediastudio.app",
+    "productName": "Media Studio",
+    "files": [
+      "main.js",
+      "loading.html"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/target/backend.jar",
+        "to": "backend.jar"
+      },
+      {
+        "from": "jre",
+        "to": "jre",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Media Studio → Flow",
+  "version": "1.7.0",
+  "description": "Lấy prompt + ảnh tham chiếu từ Media Studio, tạo ảnh trong Google Flow, tải về và gán vào cảnh.",
+  "permissions": ["storage", "downloads", "tabs", "scripting", "debugger", "alarms"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://flow.google.com/*",
+    "https://labs.google/*",
+    "https://*.googleusercontent.com/*",
+    "https://storage.googleapis.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Media Studio → Flow" },
+  "content_scripts": [
+    {
+      "matches": ["https://flow.google.com/*", "https://labs.google/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["app-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "128": "icon128.png" }
+}

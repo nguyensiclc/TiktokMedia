@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 320px; margin: 0; font: 13px/1.5 system-ui, 'Segoe UI', sans-serif; color: #16202B; background: #F3F5F8; }
+  .wrap { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  h1 { font-size: 15px; margin: 0; }
+  .card { background: #fff; border: 1px solid #DCE2E9; border-radius: 12px; padding: 10px 12px; }
+  .muted { color: #526071; font-size: 12px; }
+  .ok { color: #17734A; } .err { color: #B42318; }
+  button { min-height: 38px; border-radius: 10px; border: 1px solid #DCE2E9; background: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.primary { background: #2551D6; color: #fff; border-color: #2551D6; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+  label { font-size: 12px; color: #526071; }
+  input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #AEB9C6; border-radius: 8px; font: inherit; }
+  ul { margin: 6px 0 0; padding-left: 18px; max-height: 140px; overflow: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Media Studio → Flow</h1>
+  <div class="card" id="conn">Đang kết nối app…</div>
+  <div class="card" id="queue" hidden></div>
+  <div class="row">
+    <button id="start" class="primary" disabled>Bắt đầu</button>
+    <button id="stop">Dừng</button>
+  </div>
+  <div class="muted" id="msg"></div>
+  <details>
+    <summary class="muted">Cài đặt</summary>
+    <label for="app">Địa chỉ Media Studio</label>
+    <input id="app" placeholder="http://localhost:8787">
+    <div class="muted" style="margin-top:6px">Trước lần đầu: trong Flow mở Cài đặt của ô nhập, chọn tỉ lệ giống dự án (9:16 / 16:9) và số ảnh x1.</div>
+  </details>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

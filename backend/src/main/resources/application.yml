@@ -1,0 +1,24 @@
+server:
+  port: 8787
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: media-studio
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+  mvc:
+    async:
+      request-timeout: -1
+  web:
+    resources:
+      cache:
+        # Revalidate the UI on every load so a rebuilt app never shows a stale index.html.
+        cachecontrol:
+          no-cache: true
+
+logging:
+  level:
+    root: INFO
