@@ -90,11 +90,27 @@ final class AgentPrompts {
                 .append(wh == null ? "" : "  (" + wh[0] + "x" + wh[1] + " px)").append('\n'));
         String known = existing == null || existing.isEmpty() ? "none"
                 : String.join(", ", existing.stream().map(c -> c.name).toList());
-        return """
+        boolean hasNote = note != null && !note.isBlank();
+        String intro = images.isEmpty()
+                ? """
+                The SOURCE MATERIAL for a short narrated video is the TEXT FROM THE USER below (there are no images):
+                it may be a story, a poem, a lesson, an outline or a list of scenes, possibly with instructions.
+                Treat it as the content: "sourceText" is that work copied verbatim when it is a poem / story / lesson to
+                be read as-is, and "" when it is an outline, a scene list or loose notes (then narrationMode "free").
+                No character is drawn anywhere: every character has image null and box null, with an invented look.
+                """
+                : """
                 These images are the SOURCE MATERIAL for a short narrated video (e.g. textbook pages, a poem, a story,
                 illustrations, product photos, screenshots). Open EVERY image with the Read tool and study them together.
+                """ + list + (hasNote ? """
+                The user also typed text (below). It can be instructions (audience, tone, length) and / or content
+                itself (a story, an outline, a list of scenes): use both the images and that text as the material.
+                """ : "");
+        return """
                 %s
-                Notes from the user: %s
+                TEXT FROM THE USER:
+                %s
+
                 Characters already defined in the project (do not repeat them): %s
 
                 Write ./analysis.json (overwrite) as ONE JSON object:
@@ -110,7 +126,9 @@ final class AgentPrompts {
                   "brief": "<3-6 sentences in the narration language: what the video tells, its message, tone and audience>",
                   "style": "<English description of the visual style of the illustrations (medium, palette, line work,
                             mood) so new images match them; if the images are photos, a fitting style>",
-                  "scenes": <suggested number of scenes, 4-12, e.g. one per stanza / paragraph / key moment>,
+                  "scenes": <suggested number of scenes, 4-12, e.g. one per stanza / paragraph / key moment; when the
+                             user's text lists scenes ("Cảnh 1", "Cảnh 2"…) or asks for a number, use exactly that
+                             number (up to 40)>,
                   "characters": [
                     {
                       "name": "<name exactly as used in the text, e.g. \\"Em bé\\", \\"Bố\\", \\"Bà cụ\\">",
@@ -131,12 +149,20 @@ final class AgentPrompts {
                   Use null when image is null.
                 - Do not include characters listed as already defined.
                 Write only that file.
-                """.formatted(list, note == null || note.isBlank() ? "(none)" : note, known);
+                """.formatted(intro, hasNote ? note : "(none)", known);
     }
 
     /** Topic text for the storyboard step, built from the analysis. */
-    static String storyboardTopicFromAnalysis(String brief, String sourceText, boolean verbatim) {
-        if (!verbatim || sourceText == null || sourceText.isBlank()) return brief;
+    static String storyboardTopicFromAnalysis(String brief, String sourceText, boolean verbatim, String userText) {
+        if (!verbatim || sourceText == null || sourceText.isBlank()) {
+            if (userText == null || userText.isBlank()) return brief;
+            return brief + """
+
+
+                TEXT FROM THE USER (follow it; when it lists scenes, keep exactly those scenes, their order and their
+                facts, names and quotes, one video scene per listed scene):
+                """ + userText;
+        }
         return brief + """
 
 

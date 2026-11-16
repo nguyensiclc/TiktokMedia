@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
+import { ask } from '../confirm'
 
 const router = useRouter()
 const projects = ref([])
@@ -27,7 +28,7 @@ async function create() {
 }
 
 async function remove(p) {
-  if (!confirm(`Xoá dự án "${p.name}" cùng toàn bộ file của nó?`)) return
+  if (!(await ask({ title: `Xoá dự án "${p.name}"?`, message: 'Toàn bộ cảnh, hình, giọng đọc và video đã xuất của dự án sẽ bị xoá. Không hoàn tác được.', confirmLabel: 'Xoá dự án', danger: true }))) return
   await api.deleteProject(p.id)
   load()
 }

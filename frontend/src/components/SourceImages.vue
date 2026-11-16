@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { api, fileUrl } from '../api'
+import { ask } from '../confirm'
 
 const props = defineProps({ project: Object, busy: Boolean })
 const emit = defineEmits(['updated', 'job', 'error'])
@@ -63,6 +64,9 @@ function onPaste(e) {
     .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
     .map((i) => i.getAsFile()).filter(Boolean)
   if (!blobs.length) return
+  // Copying from Word / a web page puts both text and a picture of it on the clipboard: in a text field, keep the text.
+  const inField = e.target?.closest?.('textarea, input')
+  if (inField && e.clipboardData.getData('text/plain')) return
   e.preventDefault()
   upload(blobs.map((b, i) => {
     const type = EXT[b.type] ? b.type : 'image/png'
@@ -83,9 +87,12 @@ async function remove(name) {
   }
 }
 
+const canRun = computed(() => !!props.project.sources?.length || !!note.value.trim())
+
 async function analyze(storyboard) {
   if (storyboard && props.project.scenes.some((s) => s.mediaFile || s.audioFile) &&
-      !confirm('Kịch bản mới sẽ thay toàn bộ cảnh hiện tại (kể cả hình và giọng đã tạo). Tiếp tục?')) return
+      !(await ask({ title: 'Thay kịch bản hiện tại?', message: 'Kịch bản mới sẽ thay toàn bộ cảnh hiện tại, kể cả hình và giọng đã tạo.',
+        confirmLabel: 'Thay kịch bản', danger: true, icon: 'alert' }))) return
   try {
     emit('job', await api.analyze(props.project.id, note.value, storyboard, ai.value, model.value.trim()))
   } catch (e) {
@@ -101,15 +108,17 @@ onBeforeUnmount(() => window.removeEventListener('paste', onPaste))
   <div class="panel source-panel" :class="{ dragging }"
        @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
     <div class="row">
-      <h3 class="grow" style="margin:0"><Icon name="sparkles" />Bắt đầu từ hình ảnh</h3>
-      <span class="muted small">Ctrl+V để dán · kéo thả nhiều ảnh</span>
+      <h3 class="grow" style="margin:0"><Icon name="sparkles" />Bắt đầu từ nội dung hoặc hình ảnh</h3>
+      <span class="muted small">gõ hoặc dán chữ · Ctrl+V để dán ảnh · kéo thả nhiều ảnh</span>
       <button class="small" @click="pick">+ Chọn ảnh</button>
     </div>
     <p class="muted small">
-      Dán tất cả hình liên quan (trang sách, bài thơ, truyện, tranh minh hoạ, ảnh sản phẩm…). Claude sẽ đọc chữ, nhận diện
-      nhân vật (tự cắt ảnh làm tham chiếu), chọn phong cách và số cảnh rồi viết kịch bản. Thơ hoặc truyện được giữ nguyên văn.
+      Nhập nội dung (truyện, bài thơ, dàn ý, danh sách cảnh, ghi chú…) và / hoặc dán hình liên quan (trang sách, tranh minh
+      hoạ, ảnh sản phẩm…) vào cùng ô bên dưới. Chỉ cần một trong hai. Claude sẽ đọc, nhận diện nhân vật (có hình thì tự cắt
+      ảnh làm tham chiếu), chọn phong cách và số cảnh rồi viết kịch bản. Thơ hoặc truyện được giữ nguyên văn.
     </p>
 
+    <div class="composer">
     <div v-if="project.sources?.length || uploading" class="thumbs">
       <div v-for="s in project.sources" :key="s" class="thumb">
         <img :src="fileUrl(project.id, 'assets', s)" />
@@ -117,10 +126,9 @@ onBeforeUnmount(() => window.removeEventListener('paste', onPaste))
       </div>
       <div v-for="n in uploading" :key="'u' + n" class="thumb loading"><span class="spin" /></div>
     </div>
-    <div v-else class="drop muted" @click="pick">Dán (Ctrl+V), kéo thả hoặc bấm để chọn ảnh</div>
-
-    <textarea v-model="note" rows="2" style="margin-top:8px"
-              placeholder="Ghi chú (tuỳ chọn): ví dụ làm video cho bé 5 tuổi, giọng vui tươi, khoảng 1 phút…" />
+    <textarea v-model="note" rows="6"
+              placeholder="Nhập hoặc dán nội dung: truyện, bài thơ, dàn ý các cảnh, ghi chú (ví dụ: làm cho bé 5 tuổi, giọng vui tươi, khoảng 1 phút)… Dán hình (Ctrl+V) hoặc kéo thả hình vào đây cũng được." />
+    </div>
     <div class="row" style="margin-top:8px">
       <label class="small muted">Công cụ</label>
       <select v-model="ai" style="width:auto" @change="onAi">
@@ -137,9 +145,9 @@ onBeforeUnmount(() => window.removeEventListener('paste', onPaste))
       <Icon name="alert" /> agy không nhìn được nội dung ảnh, nên có thể đọc sai chữ và nhân vật. Chọn Claude nếu cần chính xác.
     </div>
     <div class="row" style="margin-top:8px">
-      <span class="muted small grow">{{ project.sources?.length || 0 }} ảnh</span>
-      <button :disabled="busy || !project.sources?.length" @click="analyze(false)">Chỉ phân tích nhân vật</button>
-      <button class="primary" :disabled="busy || !project.sources?.length" @click="analyze(true)">
+      <span class="muted small grow">{{ project.sources?.length || 0 }} ảnh · {{ note.trim().length }} ký tự</span>
+      <button :disabled="busy || !canRun" @click="analyze(false)">Chỉ phân tích nhân vật</button>
+      <button class="primary" :disabled="busy || !canRun" @click="analyze(true)">
         <Icon name="sparkles" /> Phân tích & tạo kịch bản
       </button>
     </div>
@@ -149,7 +157,12 @@ onBeforeUnmount(() => window.removeEventListener('paste', onPaste))
 <style scoped>
 .source-panel { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
 .source-panel.dragging { border-color: var(--accent); border-style: dashed; }
-.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.composer { border: 1px solid var(--border); border-radius: 10px; background: var(--bg); padding: 8px; }
+.composer:focus-within { border-color: var(--accent); }
+.composer textarea { display: block; width: 100%; border: 0; outline: 0; background: transparent; padding: 4px; min-height: 120px;
+                     box-shadow: none; resize: vertical; }
+.composer .thumbs { margin-bottom: 8px; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 110px)); gap: 8px; }
 .thumb { position: relative; aspect-ratio: 3/4; background: var(--bg); border-radius: 8px; overflow: hidden;
          border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }

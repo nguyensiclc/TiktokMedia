@@ -2,6 +2,7 @@
 import { ref, computed, watch as vueWatch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, fileUrl } from '../api'
+import { ask } from '../confirm'
 import SceneCard from '../components/SceneCard.vue'
 import JobLog from '../components/JobLog.vue'
 import CharacterRefs from '../components/CharacterRefs.vue'
@@ -55,15 +56,20 @@ const steps = computed(() => {
   return [
     { id: 'nguon', n: 1, label: 'Nguồn & nhân vật', note: (p.sources || []).length ? `${p.sources.length} ảnh nguồn` : 'Không bắt buộc', state: 'idle' },
     { id: 'kichban', n: 2, label: 'Kịch bản', note: n ? `${n} cảnh` : 'Chưa có cảnh', state: n ? 'ok' : 'todo' },
-    { id: 'amthanh', n: 3, label: 'Âm thanh', note: p.scriptMode ? (p.musicFile ? 'Có nhạc nền' : 'Chưa có nhạc nền') : (!n ? '—' : voiceMissing.value ? `Thiếu giọng ${voiceMissing.value} cảnh` : 'Đủ giọng đọc'), state: !n ? 'idle' : hasAudio ? 'ok' : p.scriptMode ? 'idle' : 'todo' },
-    { id: 'dung', n: 4, label: 'Dựng video', note: 'Timeline & chỉnh sửa', state: 'idle' },
-    { id: 'hinh', n: 5, label: 'Cảnh & hình ảnh', note: !n ? '—' : missingCount.value ? `Còn ${missingCount.value} cảnh trống` : 'Đủ hình', state: !n ? 'idle' : missingCount.value ? 'todo' : 'ok' },
+    { id: 'hinh', n: 3, label: 'Cảnh & hình ảnh', note: !n ? '—' : missingCount.value ? `Còn ${missingCount.value} cảnh trống` : 'Đủ hình', state: !n ? 'idle' : missingCount.value ? 'todo' : 'ok' },
+    { id: 'amthanh', n: 4, label: 'Âm thanh', note: p.scriptMode ? (p.musicFile ? 'Có nhạc nền' : 'Chưa có nhạc nền') : (!n ? '—' : voiceMissing.value ? `Thiếu giọng ${voiceMissing.value} cảnh` : 'Đủ giọng đọc'), state: !n ? 'idle' : hasAudio ? 'ok' : p.scriptMode ? 'idle' : 'todo' },
+    { id: 'dung', n: 5, label: 'Dựng video', note: 'Timeline & chỉnh sửa', state: 'idle' },
     { id: 'xuat', n: 6, label: 'Xuất & đăng', note: p.lastRender ? 'Đã xuất' : 'Chưa xuất', state: p.lastRender ? 'ok' : 'idle' },
   ]
 })
 
+// One tab per step, remembered per project in this browser. Until one is picked: scenes if there are any, else sources.
+const TAB_KEY = 'ms.tab.' + props.id
+const picked = ref((() => { try { return localStorage.getItem(TAB_KEY) || '' } catch { return '' } })())
+const tab = computed(() => picked.value || (scenesAll.value.length ? 'hinh' : 'nguon'))
 function goto(id) {
-  document.getElementById('step-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  picked.value = id
+  try { localStorage.setItem(TAB_KEY, id) } catch { /* ignore */ }
 }
 
 // One suggested next action, in plain words.
@@ -206,8 +212,8 @@ function addScene() {
   changed()
 }
 
-function removeScene(i) {
-  if (!confirm(`Xoá cảnh ${i + 1}?`)) return
+async function removeScene(i) {
+  if (!(await ask({ title: `Xoá cảnh ${i + 1}?`, message: 'Lời thoại, hình và giọng đọc của cảnh sẽ bị xoá.', confirmLabel: 'Xoá', danger: true }))) return
   project.value.scenes.splice(i, 1)
   changed()
 }
@@ -277,6 +283,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="project" class="page">
+    <div class="toolbar">
     <div class="row header">
       <button class="icon-only" title="Về danh sách dự án" aria-label="Về danh sách dự án" @click="router.push('/')"><Icon name="back" /></button>
       <input v-model="project.name" class="title" aria-label="Tên dự án" @input="changed" />
@@ -289,14 +296,15 @@ onBeforeUnmount(() => {
       <button class="primary" :disabled="running.some((j) => j.type === 'render')" title="Chỉ dựng lại các cảnh đã đổi"
               @click="run(() => api.render(id))"><Icon name="clapper" /> {{ running.some((j) => j.type === 'render') ? 'Đang xuất…' : 'Xuất video' }}</button>
     </div>
-    <div v-if="error" class="error-bar">{{ error }}</div>
-
-    <nav class="steps" aria-label="Các bước làm video">
-      <button v-for="st in steps" :key="st.id" class="step" :class="st.state" @click="goto(st.id)">
-        <span class="dot"><Icon v-if="st.state === 'ok'" name="check" :size="14" /><template v-else>{{ st.n }}</template></span>
+    <nav class="steps" role="tablist" aria-label="Các bước làm video">
+      <button v-for="st in steps" :key="st.id" class="step" :class="[st.state, { active: tab === st.id }]"
+              role="tab" :aria-selected="tab === st.id" :title="st.note" @click="goto(st.id)">
+        <span class="dot"><Icon v-if="st.state === 'ok'" name="check" :size="12" /><template v-else>{{ st.n }}</template></span>
         <span class="stx"><b>{{ st.label }}</b><small>{{ st.note }}</small></span>
       </button>
     </nav>
+    </div>
+    <div v-if="error" class="error-bar">{{ error }}</div>
 
     <section v-if="next" class="next" :class="next.tone" aria-label="Việc nên làm tiếp">
       <div class="nx">
@@ -311,14 +319,14 @@ onBeforeUnmount(() => {
 
     <div class="cols">
       <section class="left">
-        <div id="step-nguon" class="stack">
+        <div v-show="tab === 'nguon'" id="step-nguon" class="stack">
         <SourceImages :project="project" :busy="analyzing" @updated="(p) => { project.sources = p.sources }"
                       @job="onJob" @error="(m) => (error = m)" />
 
         <CharacterRefs :project="project" @updated="onCharacters" @error="(m) => (error = m)" />
         </div>
 
-        <div id="step-kichban" class="panel">
+        <div v-show="tab === 'kichban'" id="step-kichban" class="panel">
           <h3>Kịch bản · nhờ Claude chia cảnh</h3>
           <div class="field">
             <label id="niche-lbl">Ngách nội dung</label>
@@ -348,7 +356,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <details class="panel adv" :open="!!project.styleBible">
+        <details v-show="tab === 'kichban'" class="panel adv" :open="!!project.styleBible">
           <summary>Quy tắc hình ảnh · giữ nhân vật và phong cách giống nhau</summary>
           <div class="row" style="margin-top:10px">
             <span class="grow" />
@@ -368,19 +376,19 @@ onBeforeUnmount(() => {
           </div>
         </details>
 
-        <div id="step-amthanh" class="stack">
+        <div v-show="tab === 'amthanh'" id="step-amthanh" class="stack">
         <ProjectSound :project="project" :version="version" @changed="changed" @error="(m) => (error = m)"
                       @music="(p) => { project.musicFile = p.musicFile; project.musicStart = p.musicStart; project.updatedAt = p.updatedAt }" />
 
         <ProjectVoice v-if="!project.scriptMode" :project="project" @changed="changed" />
         </div>
 
-        <div id="step-dung"><TimelineEditor :id="id" :project="project" :saving="saving" :flush="flush"
+        <div v-if="tab === 'dung'" id="step-dung"><TimelineEditor :id="id" :project="project" :saving="saving" :flush="flush"
                         :render-busy="running.some((j) => j.type === 'render')"
                         @changed="changed" @replace="(p) => (project = p)" @error="(m) => (error = m)"
                         @render="run(() => api.render(id))" /></div>
 
-        <div id="step-hinh" class="row section">
+        <div v-show="tab === 'hinh'" id="step-hinh" class="row section">
           <h3 class="grow" style="margin:0">Cảnh ({{ project.scenes.length }}) · ~{{ totalDuration.toFixed(0) }}s</h3>
           <button v-if="!project.scriptMode" @click="run(() => api.voice(id, {}))"><Icon name="mic" /> Tạo giọng tất cả</button>
           <button class="primary" :disabled="!emptyCount" title="Tạo hình cho các cảnh trống bằng Google Flow (service tạo ảnh hoặc extension, chọn trong Cài đặt)"
@@ -392,6 +400,8 @@ onBeforeUnmount(() => {
           <button @click="addScene"><Icon name="plus" /> Cảnh</button>
         </div>
 
+        <div v-show="tab === 'hinh'" class="stack">
+        <div v-if="!project.scenes.length" class="panel muted">Chưa có cảnh nào. Tạo kịch bản ở tab "Kịch bản" (hoặc phân tích ở tab "Nguồn & nhân vật"), hoặc bấm "+ Cảnh".</div>
         <SceneCard
           v-for="(s, i) in project.scenes" :key="s.id"
           :scene="s" :index="i" :total="project.scenes.length" :project-id="id" :version="version"
@@ -410,9 +420,9 @@ onBeforeUnmount(() => {
           @upload="(k, f) => upload(s, k, f)"
           @clear="(k) => clear(s, k)"
         />
-      </section>
+        </div>
 
-      <section id="step-xuat" class="right">
+        <div v-show="tab === 'xuat'" id="step-xuat" class="stack">
         <div class="panel">
           <h3>Xuất video</h3>
           <button class="primary wide" @click="run(() => api.render(id))"><Icon name="clapper" /> Render bằng FFmpeg</button>
@@ -427,6 +437,10 @@ onBeforeUnmount(() => {
 
         <TiktokPublish :project="project" @job="onJob" @error="(m) => (error = m)" @changed="changed" />
 
+        </div>
+      </section>
+
+      <section class="right">
         <div class="panel">
           <h3>Tác vụ</h3>
           <div class="joblist">
@@ -464,47 +478,55 @@ onBeforeUnmount(() => {
 .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .topic-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s2); }
 .topic-chip { border-radius: var(--r-full); font-weight: 500; }
-.header { margin-bottom: var(--s4); gap: var(--s3); }
+/* Unified toolbar: a translucent bar that stays on top of the scrolling content, like a macOS window toolbar. */
+.toolbar { position: sticky; top: 0; z-index: 20; margin: calc(-1 * var(--s5)) calc(-1 * var(--s6)) var(--s4);
+  padding: 10px var(--s6) 10px; background: var(--toolbar); border-bottom: 1px solid var(--border);
+  -webkit-backdrop-filter: var(--material-blur); backdrop-filter: var(--material-blur); }
+.header { margin-bottom: 10px; gap: var(--s3); flex-wrap: nowrap; }
 .save { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--ok); }
 .save.busy { color: var(--muted); }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 #step-nguon, #step-kichban, #step-amthanh, #step-dung, #step-hinh, #step-xuat { scroll-margin-top: 12px; }
 
-.steps { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; scrollbar-width: thin; }
-.step { flex: 1 0 150px; display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 12px; min-height: 52px;
-        background: var(--panel); border-radius: 12px; white-space: normal; }
-.step .dot { flex: 0 0 28px; height: 28px; border-radius: 99px; display: flex; align-items: center; justify-content: center;
-             font-size: 13px; font-weight: 700; background: var(--panel-2); color: var(--text); }
-.step .stx { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
-.step .stx b { font-size: 13px; font-weight: 600; }
-.step .stx small { font-size: 12px; color: var(--muted); }
-.step.ok .dot { background: var(--ok); color: var(--on-accent); }
-.step.todo { background: var(--warn-soft); border-color: var(--warn-line); }
+/* Segmented control: one grey track, the selected segment is a raised white pill. */
+.steps { display: flex; gap: 2px; overflow-x: auto; padding: 2px; border-radius: 9px; background: var(--fill); scrollbar-width: none; }
+.step { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 4px 12px; min-height: 30px;
+        background: transparent; border-color: transparent; box-shadow: none; border-radius: 7px; color: var(--text); }
+.step:hover:not(:disabled) { background: var(--fill); }
+.step .dot { flex: 0 0 18px; height: 18px; border-radius: 99px; display: flex; align-items: center; justify-content: center;
+             font-size: 11px; font-weight: 600; background: var(--fill-strong); color: var(--muted); }
+.step .stx { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.step .stx b { font-size: 13px; font-weight: 500; }
+.step .stx small { display: none; font-size: 11px; color: var(--muted); }
+.step.active, .step.active:hover:not(:disabled) { background: var(--panel); box-shadow: 0 1px 3px rgba(0, 0, 0, .14), 0 0 0 .5px rgba(0, 0, 0, .06); }
+.step.active .stx b { font-weight: 600; }
+.step.ok .dot { background: var(--ok); color: #fff; }
 .step.todo .dot { background: var(--warn-line); color: var(--on-warn); }
-.step.todo small { color: var(--warn); }
+.step.todo .stx small { display: inline; color: var(--warn); }
+@media (max-width: 1500px) { .step.todo .stx small { display: none; } }
 
-.next { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; border-radius: 16px; padding: 18px 22px;
-        margin-bottom: 16px; border: 1px solid var(--border); background: var(--accent-soft); }
+.next { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; border-radius: var(--r-lg); padding: 12px 16px;
+        margin-bottom: 14px; border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); background: var(--accent-soft); }
 .next.warn { background: var(--warn-soft); border-color: var(--warn-line); }
 .next.ok { background: var(--ok-soft); border-color: var(--ok-line); }
 .next .nx { flex: 1 1 320px; min-width: 0; }
-.next .kicker { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.next .kicker { font-size: 11px; font-weight: 600; color: var(--muted); }
 .next.warn .kicker { color: var(--warn); }
-.next h2 { margin: 2px 0 4px; font-size: 18px; }
-.next p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text); }
-.nact button { min-height: 44px; }
+.next h2 { margin: 1px 0 2px; font-size: 15px; }
+.next p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); }
 
 .adv { padding: 0 20px; }
 .adv > summary { min-height: 52px; display: flex; align-items: center; cursor: pointer; font-weight: 600; font-size: 14px; list-style-position: inside; }
 .adv[open] { padding-bottom: 18px; }
-.title { font-size: 20px; font-weight: 700; max-width: 460px; border-color: transparent; background: transparent; box-shadow: none; padding-left: 8px; }
+.title { font-size: 15px; font-weight: 600; max-width: 420px; border-color: transparent; background: transparent; box-shadow: none; padding-left: 8px; }
 .title:hover { border-color: var(--border); }
 .title:focus { border-color: var(--accent); background: var(--panel); }
 .chk { gap: 6px; font-size: 13px; color: var(--text); margin: 0; }
 .chk input { width: auto; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
 .left, .right { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.section { margin-top: 8px; }
+.section { margin-top: 0; flex-wrap: wrap; }
+.right { position: sticky; top: 12px; }
 .joblist { max-height: 180px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: 8px; background: var(--bg); }
 .jobitem { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
 .jobitem:last-child { border-bottom: 0; }
@@ -513,12 +535,14 @@ onBeforeUnmount(() => {
 .jobitem.bad .jt { color: var(--err); }
 .jt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wide { width: 100%; }
-.final { width: 100%; margin-top: 10px; border-radius: 8px; background: #000; }
+.final { width: 100%; max-height: 70vh; margin-top: 10px; border-radius: 8px; background: #000; }
 .small { font-size: 12px; }
 code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 @media (max-width: 1100px) { .cols { grid-template-columns: minmax(0, 1fr); } .right { position: static; } }
 @media (max-width: 820px) {
-  .header { gap: 6px; }
+  .toolbar { position: static; margin: 0 0 var(--s3); padding: 0; background: transparent; border: 0; backdrop-filter: none; }
+  .header { gap: 6px; flex-wrap: wrap; }
+  .step { flex: 1 0 auto; min-height: 44px; }
   .title { flex: 1 1 100%; max-width: none; order: 1; }
   .header :deep(select) { width: auto !important; }
 }

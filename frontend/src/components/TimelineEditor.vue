@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { api, fileUrl, isVideo } from '../api'
+import { ask } from '../confirm'
 
 /**
  * Timeline editor embedded in the project page: scenes, script text, voice and music on one time axis with a live
@@ -119,9 +120,9 @@ async function duplicate(s) {
     project.value = await api.post(`/api/projects/${props.id}/scenes/${s.id}/duplicate`)
   } catch (e) { error.value = e.message }
 }
-function remove(s) {
+async function remove(s) {
   const arr = project.value.scenes
-  if (!confirm('Xoá cảnh này?')) return
+  if (!(await ask({ title: 'Xoá cảnh này?', message: 'Lời thoại, hình và giọng đọc của cảnh sẽ bị xoá.', confirmLabel: 'Xoá', danger: true }))) return
   const i = arr.findIndex((x) => x.id === s.id)
   arr.splice(i, 1)
   sel.value = arr[Math.min(i, arr.length - 1)]?.id || null

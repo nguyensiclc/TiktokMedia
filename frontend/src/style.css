@@ -1,130 +1,165 @@
 /*
- * Media Studio design tokens (ui-ux-pro-max rules: semantic tokens, 4/8 spacing, 12/14/16/18/24/32 type scale,
- * 4.5:1 text contrast, light + dark designed together, visible focus, reduced motion respected).
+ * Media Studio design tokens — macOS desktop look ("Apple Native Experience" from ui-ux-pro-max):
+ * system typography, semantic adaptive colours, grouped white surfaces on a light grey window, a translucent
+ * sidebar, small 6px controls, restrained borders and shadows, a soft blue focus ring. Light + dark together,
+ * 4.5:1 text contrast, reduced motion and reduced transparency respected.
  */
 :root {
   /* surfaces */
-  --bg: #F4F6F9;
+  --bg: #F5F5F7;
   --panel: #FFFFFF;
-  --panel-2: #EEF1F5;
-  --panel-3: #E4E8EE;
-  --border: #D9DFE7;
-  --border-strong: #C3CBD6;
+  --panel-2: #F0F0F2;
+  --panel-3: #E5E5EA;
+  --border: #E1E1E6;
+  --border-strong: #CFCFD4;
+  /* window chrome: sidebar + toolbar are translucent materials over the window */
+  --sidebar: rgba(234, 234, 238, .78);
+  --toolbar: rgba(245, 245, 247, .82);
+  --material-blur: saturate(180%) blur(20px);
+  --fill: rgba(118, 118, 128, .12);
+  --fill-strong: rgba(118, 118, 128, .2);
   /* text */
-  --text: #141C26;
-  --muted: #536173;
-  /* brand + states */
-  --accent: #2551D6;
-  --accent-2: #1F45B8;
-  --accent-soft: #E8EEFF;
+  --text: #1D1D1F;
+  --muted: #636366;
+  /* brand + states (system blue / green / red / orange, darkened to keep 4.5:1 as text) */
+  --accent: #0066CC;
+  --accent-2: #0055B3;
+  --accent-soft: #E1EEFF;
   --on-accent: #FFFFFF;
-  --ok: #157046;
-  --ok-soft: #E2F4EA;
-  --ok-line: #A9DCC3;
-  --err: #B42318;
-  --err-soft: #FDE8E6;
+  --focus: rgba(0, 122, 255, .45);
+  --ok: #1D7A34;
+  --ok-soft: #E3F5E7;
+  --ok-line: #A8DBB4;
+  --err: #C5221F;
+  --err-soft: #FDE9E8;
   --warn: #8A4B05;
-  --warn-soft: #FFF4E0;
-  --warn-line: #E1B46B;
+  --warn-soft: #FFF4DE;
+  --warn-line: #E6B866;
   --on-warn: #3B2A0B;
-  /* elevation */
-  --shadow-1: 0 1px 2px rgba(16, 24, 40, .06);
-  --shadow-2: 0 4px 16px rgba(16, 24, 40, .08);
-  --shadow-3: 0 12px 32px rgba(16, 24, 40, .14);
+  /* elevation: hairline + very soft */
+  --shadow-1: 0 0 0 .5px rgba(0, 0, 0, .04), 0 1px 2px rgba(0, 0, 0, .06);
+  --shadow-2: 0 0 0 .5px rgba(0, 0, 0, .06), 0 6px 20px rgba(0, 0, 0, .1);
+  --shadow-3: 0 0 0 .5px rgba(0, 0, 0, .1), 0 18px 44px rgba(0, 0, 0, .22);
   /* spacing (4/8 scale) */
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
-  /* radius */
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-full: 999px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 28px; --s7: 48px;
+  /* radius: 6 controls, 10 grouped boxes, 12 cards / sheets */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 12px; --r-full: 999px;
   /* motion */
-  --ease-out: cubic-bezier(.16, 1, .3, 1);
-  --t-fast: 120ms; --t-med: 200ms;
+  --ease-out: cubic-bezier(.25, .1, .25, 1);
+  --t-fast: 150ms; --t-med: 250ms;
 
-  font-family: 'Be Vietnam Pro', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui,
+    'Helvetica Neue', Arial, sans-serif;
   color-scheme: light;
 }
 
-/* Dark: desaturated tonal surfaces (not an inverted light theme). */
+/* Dark: macOS dark appearance (neutral greys, lifted surfaces, brighter system colours). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0E131A; --panel: #151C25; --panel-2: #1C2530; --panel-3: #24303D;
-    --border: #2A3644; --border-strong: #3A4859;
-    --text: #E7ECF2; --muted: #9BA8B8;
-    --accent: #7B9CFF; --accent-2: #9BB4FF; --accent-soft: #1D2A4D; --on-accent: #0A1122;
-    --ok: #4CC38A; --ok-soft: #12291E; --ok-line: #24573E;
-    --err: #FF8A80; --err-soft: #331816;
-    --warn: #F2B85C; --warn-soft: #2E2210; --warn-line: #8A6420; --on-warn: #1E1405;
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --shadow-2: 0 4px 16px rgba(0, 0, 0, .35); --shadow-3: 0 12px 32px rgba(0, 0, 0, .5);
+    --bg: #1E1E1F; --panel: #2A2A2C; --panel-2: #333335; --panel-3: #3D3D40;
+    --border: #3A3A3D; --border-strong: #505054;
+    --sidebar: rgba(38, 38, 40, .78); --toolbar: rgba(30, 30, 31, .82);
+    --fill: rgba(118, 118, 128, .24); --fill-strong: rgba(118, 118, 128, .36);
+    --text: #F5F5F7; --muted: #A6A6AB;
+    --accent: #4DA3FF; --accent-2: #7AB9FF; --accent-soft: #17324F; --on-accent: #04182E; --focus: rgba(10, 132, 255, .6);
+    --ok: #4CD964; --ok-soft: #14301B; --ok-line: #27653A;
+    --err: #FF7B72; --err-soft: #3A1917;
+    --warn: #FFB84D; --warn-soft: #33250F; --warn-line: #8A6420; --on-warn: #1E1405;
+    --shadow-1: 0 0 0 .5px rgba(255, 255, 255, .06), 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-2: 0 0 0 .5px rgba(255, 255, 255, .08), 0 6px 20px rgba(0, 0, 0, .4);
+    --shadow-3: 0 0 0 .5px rgba(255, 255, 255, .1), 0 18px 44px rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0E131A; --panel: #151C25; --panel-2: #1C2530; --panel-3: #24303D;
-  --border: #2A3644; --border-strong: #3A4859;
-  --text: #E7ECF2; --muted: #9BA8B8;
-  --accent: #7B9CFF; --accent-2: #9BB4FF; --accent-soft: #1D2A4D; --on-accent: #0A1122;
-  --ok: #4CC38A; --ok-soft: #12291E; --ok-line: #24573E;
-  --err: #FF8A80; --err-soft: #331816;
-  --warn: #F2B85C; --warn-soft: #2E2210; --warn-line: #8A6420; --on-warn: #1E1405;
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --shadow-2: 0 4px 16px rgba(0, 0, 0, .35); --shadow-3: 0 12px 32px rgba(0, 0, 0, .5);
+  --bg: #1E1E1F; --panel: #2A2A2C; --panel-2: #333335; --panel-3: #3D3D40;
+  --border: #3A3A3D; --border-strong: #505054;
+  --sidebar: rgba(38, 38, 40, .78); --toolbar: rgba(30, 30, 31, .82);
+  --fill: rgba(118, 118, 128, .24); --fill-strong: rgba(118, 118, 128, .36);
+  --text: #F5F5F7; --muted: #A6A6AB;
+  --accent: #4DA3FF; --accent-2: #7AB9FF; --accent-soft: #17324F; --on-accent: #04182E; --focus: rgba(10, 132, 255, .6);
+  --ok: #4CD964; --ok-soft: #14301B; --ok-line: #27653A;
+  --err: #FF7B72; --err-soft: #3A1917;
+  --warn: #FFB84D; --warn-soft: #33250F; --warn-line: #8A6420; --on-warn: #1E1405;
+  --shadow-1: 0 0 0 .5px rgba(255, 255, 255, .06), 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-2: 0 0 0 .5px rgba(255, 255, 255, .08), 0 6px 20px rgba(0, 0, 0, .4);
+  --shadow-3: 0 0 0 .5px rgba(255, 255, 255, .1), 0 18px 44px rgba(0, 0, 0, .6);
   color-scheme: dark;
+}
+/* People who turn transparency down get solid chrome. */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --sidebar: var(--panel-2); --toolbar: var(--bg); --material-blur: none; }
 }
 
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
 body {
-  background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.55;
+  background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+/* Thin overlay-style scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--fill-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--fill-strong); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
 a { color: var(--accent); text-decoration: none; text-underline-offset: 3px; }
 a:hover { text-decoration: underline; }
-h1, h2, h3 { margin: 0 0 var(--s3); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; }
-h1 { font-size: 24px; font-weight: 700; }
-h2 { font-size: 18px; font-weight: 700; }
-h3 { font-size: 16px; font-weight: 700; color: var(--text); }
-small, .small { font-size: 13px; }
+h1, h2, h3 { margin: 0 0 var(--s3); font-weight: 600; line-height: 1.25; letter-spacing: -.015em; }
+h1 { font-size: 22px; font-weight: 700; }
+h2 { font-size: 17px; font-weight: 600; }
+h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+small, .small { font-size: 12px; }
 
 /* Icons from lucide (one family, 2px stroke) */
 .ico { flex-shrink: 0; vertical-align: -0.2em; }
 .ih { display: inline-flex; align-items: center; gap: 6px; }
 h1 .ico, h2 .ico, h3 .ico { color: var(--accent); margin-right: 6px; }
 
+/* Push buttons: white, hairline border, 6px corners; the default action is filled blue. */
 button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: var(--panel); color: var(--text); border: 1px solid var(--border-strong);
-  padding: 8px 14px; min-height: 38px; border-radius: var(--r-sm); cursor: pointer; font: inherit; font-weight: 500;
-  white-space: nowrap; box-shadow: var(--shadow-1);
+  padding: 5px 12px; min-height: 30px; border-radius: var(--r-sm); cursor: pointer; font: inherit; font-weight: 500;
+  white-space: nowrap; box-shadow: 0 1px 1px rgba(0, 0, 0, .05);
   transition: background-color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+    color var(--t-fast) var(--ease-out), opacity var(--t-fast) var(--ease-out);
   touch-action: manipulation;
 }
-button:hover:not(:disabled) { background: var(--panel-2); border-color: var(--accent); }
-button:active:not(:disabled) { transform: translateY(1px); }
-button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-button.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+button:hover:not(:disabled) { background: var(--panel-2); }
+button:active:not(:disabled) { background: var(--panel-3); }
+button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+button.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .12), inset 0 1px 0 rgba(255, 255, 255, .16); }
+button.primary:hover:not(:disabled) { background: var(--accent-2); }
+button.primary:active:not(:disabled) { background: var(--accent-2); opacity: .88; }
 button.danger { color: var(--err); }
-button.danger:hover:not(:disabled) { border-color: var(--err); background: var(--err-soft); }
-button.small { padding: 4px 10px; min-height: 32px; font-size: 13px; gap: 4px; }
-button.icon-only { padding: 0; width: 36px; min-height: 36px; }
-button.small.icon-only { width: 32px; min-height: 32px; }
+button.danger:hover:not(:disabled) { background: var(--err-soft); border-color: var(--err); }
+button.small { padding: 3px 9px; min-height: 26px; font-size: 12px; gap: 4px; }
+button.icon-only { padding: 0; width: 30px; min-height: 30px; }
+button.small.icon-only { width: 26px; min-height: 26px; }
 
-:where(button, a, summary, input, select, textarea, [tabindex]):focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px;
-}
+/* The macOS focus ring: a soft blue halo, on keyboard focus and on focused fields. */
+:where(button, a, summary, [tabindex]):focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
 
 input, textarea, select {
   background: var(--panel); color: var(--text); border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm); padding: 8px 10px; font: inherit; width: 100%;
-  transition: border-color var(--t-fast) var(--ease-out);
+  border-radius: var(--r-sm); padding: 5px 8px; min-height: 30px; font: inherit; width: 100%;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, .04);
+  transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
 }
 input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 80%, transparent); }
-input[type=checkbox], input[type=radio] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
-input[type=range] { accent-color: var(--accent); padding: 0; border: 0; background: transparent; }
-textarea { resize: vertical; min-height: 64px; line-height: 1.5; }
-input:focus, textarea:focus, select:focus { border-color: var(--accent); }
-label { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: var(--s1); }
+input[type=checkbox], input[type=radio] { width: 16px; height: 16px; min-height: 0; accent-color: var(--accent); cursor: pointer; box-shadow: none; }
+input[type=range] { accent-color: var(--accent); padding: 0; border: 0; background: transparent; box-shadow: none; }
+textarea { resize: vertical; min-height: 64px; line-height: 1.5; padding: 7px 9px; }
+input:focus, textarea:focus, select:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+input[type=checkbox]:focus, input[type=radio]:focus, input[type=range]:focus { box-shadow: none; }
+input[type=checkbox]:focus-visible, input[type=radio]:focus-visible, input[type=range]:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: var(--s1); }
 summary { cursor: pointer; }
 
+/* Grouped box: white rounded surface on the grey window. */
 .panel {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: var(--s5); box-shadow: var(--shadow-1);
@@ -137,20 +172,20 @@ summary { cursor: pointer; }
 .field { margin-bottom: var(--s3); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .badge {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; padding: 2px 8px;
-  border-radius: var(--r-full); background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; padding: 1px 8px;
+  border-radius: var(--r-full); background: var(--fill); border: 0; color: var(--muted);
 }
-.hint { color: var(--muted); font-size: 13px; margin: 0 0 var(--s3); }
+.hint { color: var(--muted); font-size: 12px; margin: 0 0 var(--s3); }
 .check { display: flex; align-items: center; gap: var(--s2); color: var(--text); font-size: 14px; cursor: pointer; }
 
 .error-bar {
   display: flex; align-items: center; gap: var(--s2);
-  background: var(--err-soft); border: 1px solid var(--err); color: var(--err);
-  padding: var(--s2) var(--s3); border-radius: var(--r-sm); margin-bottom: var(--s3);
+  background: var(--err-soft); border: 1px solid color-mix(in srgb, var(--err) 45%, transparent); color: var(--err);
+  padding: var(--s2) var(--s3); border-radius: var(--r-md); margin-bottom: var(--s3);
 }
 
 /* Shared look for the step bar, hint cards and the "advanced" fold on the project page */
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--r-full); font-size: 12px; font-weight: 600; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: var(--r-full); font-size: 12px; font-weight: 600; }
 .chip.ok { background: var(--ok-soft); color: var(--ok); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
 .chip.err { background: var(--err-soft); color: var(--err); }

@@ -63,6 +63,11 @@ export const api = {
     return api.upload(`/api/projects/${id}/characters`, f)
   },
   updateCharacter: (id, cid, body) => api.put(`/api/projects/${id}/characters/${cid}`, body),
+  setCharacterImage: (id, cid, file) => {
+    const f = new FormData()
+    f.append('file', file)
+    return api.upload(`/api/projects/${id}/characters/${cid}/image`, f)
+  },
   deleteCharacter: (id, cid) => api.del(`/api/projects/${id}/characters/${cid}`),
 
   openFolder: (id, folder = 'output') => api.post(`/api/projects/${id}/open-folder`, { folder }),

@@ -217,7 +217,7 @@ public class FlowApiService {
                     continue;
                 }
                 String file = "scene-" + sid + "-flow-" + System.currentTimeMillis() + ext(r.image());
-                Files.write(dir.resolve("assets").resolve(file), r.image());
+                Files.write(dir.resolve("assets").resolve(file), GeminiWatermark.clean(r.image())); // drop the ✦ mark
                 projects.mutate(projectId, pr -> {
                     Scene x = pr.scene(sid);
                     if (x != null) { x.mediaFile = file; x.mediaSource = "flow"; }

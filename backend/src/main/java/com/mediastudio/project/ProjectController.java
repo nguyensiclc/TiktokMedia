@@ -161,6 +161,24 @@ public class ProjectController {
         });
     }
 
+    /** multipart: file — sets or replaces this character's picture. */
+    @PostMapping("/{id}/characters/{cid}/image")
+    public Project setCharacterImage(@PathVariable String id, @PathVariable String cid,
+                                     @RequestParam("file") MultipartFile file) throws IOException {
+        String original = file.getOriginalFilename() == null ? "ref.png" : file.getOriginalFilename();
+        String ext = original.contains(".") ? original.substring(original.lastIndexOf('.')).toLowerCase() : ".png";
+        if (!IMAGE_EXT.contains(ext)) throw new IllegalArgumentException("Chỉ nhận ảnh PNG, JPG hoặc WebP");
+        String old = projects.get(id).character(cid).file;
+        String name = "ref-" + cid + ext;
+        Files.copy(file.getInputStream(), projects.file(id, "assets", name), StandardCopyOption.REPLACE_EXISTING);
+        if (old != null && !old.equals(name)) Files.deleteIfExists(projects.file(id, "assets", old));
+        return projects.mutate(id, p -> {
+            CharacterRef c = p.character(cid);
+            c.file = name;
+            c.canvaMediaId = null; // the old upload shows the old picture
+        });
+    }
+
     @DeleteMapping("/{id}/characters/{cid}")
     public Project deleteCharacter(@PathVariable String id, @PathVariable String cid) throws IOException {
         Project p = projects.get(id);

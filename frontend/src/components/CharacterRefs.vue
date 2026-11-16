@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { api, fileUrl } from '../api'
+import { ask } from '../confirm'
 
 const props = defineProps({ project: Object })
 const emit = defineEmits(['updated', 'error'])
@@ -11,6 +12,47 @@ const dragging = ref(false)
 const nameInputs = ref({})
 const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
 let seq = 0
+// Saved characters whose picture was just replaced: { [id]: timestamp }, so the <img> reloads (same file name).
+const imgVer = ref({})
+const imgBusy = ref({})
+const dropOn = ref(null)
+
+function asImageFile(b, i = 0) {
+  const type = EXT[b.type] ? b.type : 'image/png'
+  const keepName = b.name && b.name !== 'image.png'
+  return new File([b], keepName ? b.name : `pasted-${Date.now()}-${i}.${EXT[type]}`, { type })
+}
+
+/** Sets or replaces the picture of a saved character (paste / drop / pick on its card). */
+async function setImage(c, file) {
+  if (!file) return
+  if (!EXT[file.type]) return emit('error', 'Chỉ nhận ảnh PNG, JPG hoặc WebP')
+  imgBusy.value[c.id] = true
+  try {
+    const p = await api.setCharacterImage(props.project.id, c.id, file)
+    imgVer.value[c.id] = Date.now()
+    emit('updated', p)
+  } catch (e) {
+    emit('error', e.message)
+  } finally {
+    imgBusy.value[c.id] = false
+  }
+}
+
+function pickFor(c) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/png,image/jpeg,image/webp'
+  input.onchange = () => setImage(c, input.files[0])
+  input.click()
+}
+
+function dropFor(c, e) {
+  dropOn.value = null
+  dragging.value = false
+  const f = [...(e.dataTransfer?.files || [])].find((x) => x.type.startsWith('image/'))
+  if (f) setImage(c, f)
+}
 
 function nextName() {
   return `Nhân vật ${props.project.characters.length + pending.value.length + 1}`
@@ -58,11 +100,11 @@ function onPaste(e) {
     .filter(Boolean)
   if (!blobs.length) return
   e.preventDefault()
-  stage(blobs.map((b, i) => {
-    const type = EXT[b.type] ? b.type : 'image/png'
-    const keepName = b.name && b.name !== 'image.png'
-    return new File([b], keepName ? b.name : `pasted-${Date.now()}-${i}.${EXT[type]}`, { type })
-  }))
+  // Hovering a saved character's card: the picture goes into that card (fills the empty box or replaces).
+  const cid = document.querySelector('.character-panel .char[data-cid]:hover')?.dataset.cid
+  const target = cid && props.project.characters.find((c) => c.id === cid)
+  if (target) return setImage(target, asImageFile(blobs[0]))
+  stage(blobs.map(asImageFile))
 }
 
 function onDrop(e) {
@@ -107,7 +149,7 @@ async function update(c) {
 }
 
 async function remove(c) {
-  if (!confirm(`Xoá nhân vật "${c.name}"?`)) return
+  if (!(await ask({ title: `Xoá nhân vật "${c.name}"?`, message: 'Ảnh tham chiếu và mô tả của nhân vật này sẽ bị xoá.', confirmLabel: 'Xoá', danger: true }))) return
   try {
     emit('updated', await api.deleteCharacter(props.project.id, c.id))
   } catch (e) {
@@ -127,7 +169,7 @@ onBeforeUnmount(() => {
        @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
     <div class="row">
       <h3 class="grow" style="margin:0">0 · Nhân vật tham chiếu ({{ project.characters.length }})</h3>
-      <span class="muted small">trỏ chuột vào đây rồi Ctrl+V · kéo thả ảnh</span>
+      <span class="muted small">trỏ chuột vào một ô nhân vật rồi Ctrl+V để dán ảnh vào ô đó · dán ở chỗ trống để thêm nhân vật mới</span>
       <button class="small" @click="pick">+ Thêm ảnh</button>
     </div>
     <p class="muted small">
@@ -158,10 +200,16 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-for="c in project.characters" :key="c.id" class="char">
-        <img v-if="c.file" :src="fileUrl(project.id, 'assets', c.file)" />
-        <div v-else class="noimg muted" title="Nhân vật chỉ có mô tả; dán ảnh khi trỏ chuột vào khung này để thêm nhân vật có ảnh">
-          Không có ảnh<br /><span class="small">chỉ dùng mô tả</span>
+      <div v-for="c in project.characters" :key="c.id" class="char" :class="{ over: dropOn === c.id }" :data-cid="c.id"
+           @dragover.prevent.stop="dropOn = c.id" @dragleave="dropOn = null" @drop.prevent.stop="dropFor(c, $event)">
+        <div class="pic" :title="c.file ? 'Bấm để chọn ảnh khác, hoặc trỏ chuột vào ô này rồi Ctrl+V' : 'Bấm để chọn ảnh, hoặc trỏ chuột vào ô này rồi Ctrl+V'"
+             @click="pickFor(c)">
+          <img v-if="c.file" :src="fileUrl(project.id, 'assets', c.file, imgVer[c.id])" />
+          <div v-else class="noimg muted">
+            Chưa có ảnh<br /><span class="small">trỏ chuột vào đây rồi Ctrl+V<br />hoặc bấm để chọn ảnh</span>
+          </div>
+          <span v-if="imgBusy[c.id]" class="pic-tag">Đang lưu…</span>
+          <span v-else-if="c.file" class="pic-tag hint">Ctrl+V hoặc bấm để đổi ảnh</span>
         </div>
         <label>Tên nhân vật</label>
         <input v-model="c.name" @change="update(c)" />
@@ -184,6 +232,13 @@ onBeforeUnmount(() => {
 .char { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px;
         display: flex; flex-direction: column; gap: 4px; }
 .char.new { border-color: var(--accent); }
+.char[data-cid]:hover, .char.over { border-color: var(--accent); }
+.pic { position: relative; cursor: pointer; }
+.pic-tag { position: absolute; left: 6px; right: 6px; bottom: 10px; padding: 3px 6px; border-radius: 6px; font-size: 11px;
+           text-align: center; background: rgba(0,0,0,.7); color: #fff; }
+.pic-tag.hint { display: none; }
+.pic:hover .pic-tag.hint { display: block; }
+.char:hover .noimg { outline: 1px dashed var(--accent); }
 .noimg { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--bg); display: flex; flex-direction: column;
          align-items: center; justify-content: center; text-align: center; font-size: 13px; margin-bottom: 4px; }
 .char img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--bg); margin-bottom: 4px; }

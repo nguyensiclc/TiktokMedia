@@ -232,7 +232,7 @@ public class FlowExtService {
         if ((data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xD8) ext = ".jpg";
         else if (data.length > 12 && data[8] == 'W' && data[9] == 'E' && data[10] == 'B' && data[11] == 'P') ext = ".webp";
         String name = "scene-" + sceneId + "-flow-" + System.currentTimeMillis() + ext;
-        Files.write(projects.dir(s.projectId).resolve("assets").resolve(name), data);
+        Files.write(projects.dir(s.projectId).resolve("assets").resolve(name), GeminiWatermark.clean(data)); // drop the ✦ mark
         projects.mutate(s.projectId, pr -> {
             Scene x = pr.scene(sceneId);
             if (x != null) {

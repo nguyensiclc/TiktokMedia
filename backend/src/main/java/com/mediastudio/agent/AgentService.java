@@ -68,8 +68,10 @@ public class AgentService {
     /** @param ai "claude" or "agy" for this run; @param model model of that tool (blank = its Settings model). */
     public Job analyze(String projectId, String note, boolean thenStoryboard, String ai, String model) {
         Project p0 = projects.get(projectId);
-        if (p0.sources.isEmpty()) throw new IllegalArgumentException("Hãy dán ít nhất một hình");
-        return jobs.start("analyze", "Phân tích " + p0.sources.size() + " hình", projectId, null, ctx -> {
+        boolean hasText = note != null && !note.isBlank();
+        if (p0.sources.isEmpty() && !hasText) throw new IllegalArgumentException("Hãy nhập nội dung hoặc dán ít nhất một hình");
+        String jobTitle = p0.sources.isEmpty() ? "Phân tích nội dung" : "Phân tích " + p0.sources.size() + " hình";
+        return jobs.start("analyze", jobTitle, projectId, null, ctx -> {
             Project p = projects.get(projectId);
             Path dir = projects.dir(projectId);
             Path assets = projects.folder(projectId, "assets");
@@ -79,8 +81,9 @@ public class AgentService {
             Files.deleteIfExists(out);
 
             boolean useAgy = "agy".equalsIgnoreCase(ai);
-            ctx.log("▶ " + (useAgy ? "agy" : "Claude") + " đọc " + images.size() + " hình…");
-            if (useAgy) ctx.log("  ⚠ agy mở được file ảnh nhưng không nhìn được nội dung; nếu kết quả sai hãy chọn Claude");
+            ctx.log("▶ " + (useAgy ? "agy" : "Claude") + " đọc "
+                    + (images.isEmpty() ? "nội dung đã nhập…" : images.size() + " hình" + (hasText ? " và nội dung đã nhập…" : "…")));
+            if (useAgy && !images.isEmpty()) ctx.log("  ⚠ agy mở được file ảnh nhưng không nhìn được nội dung; nếu kết quả sai hãy chọn Claude");
             // The user picks the tool/model per run; needsVision=false so the choice is honoured.
             claude.runWriting(AgentPrompts.analyze(images, p.characters, note), AgentPrompts.system(p), dir,
                     List.of("Read", "Write"), false, useAgy ? "agy" : "claude", model, ctx);
@@ -93,7 +96,7 @@ public class AgentService {
             boolean verbatim = "verbatim".equals(a.path("narrationMode").asText()) && !sourceText.isEmpty();
             String brief = a.path("brief").asText("").trim();
             String style = a.path("style").asText("").trim();
-            int count = Math.max(1, Math.min(a.path("scenes").asInt(6), 20));
+            int count = Math.max(1, Math.min(a.path("scenes").asInt(6), 40));
             ctx.log("  " + a.path("contentType").asText("?") + " · " + (verbatim ? "đọc nguyên văn" : "lời kể tự do")
                     + " · " + count + " cảnh · " + language);
 
@@ -129,7 +132,7 @@ public class AgentService {
 
             if (thenStoryboard) {
                 ctx.log("▶ Viết kịch bản…");
-                runStoryboard(projectId, AgentPrompts.storyboardTopicFromAnalysis(brief, sourceText, verbatim),
+                runStoryboard(projectId, AgentPrompts.storyboardTopicFromAnalysis(brief, sourceText, verbatim, note),
                         brief, count, language, style, false, useAgy ? "agy" : "claude", model, ctx);
             } else {
                 projects.mutate(projectId, pr -> pr.topic = brief);

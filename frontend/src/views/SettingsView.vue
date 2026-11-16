@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api'
+import { ask } from '../confirm'
 import JobLog from '../components/JobLog.vue'
 import VoicePicker from '../components/VoicePicker.vue'
 
@@ -55,7 +56,7 @@ async function tiktokConnect() {
 }
 
 async function tiktokDisconnect() {
-  if (!confirm('Ngắt kết nối tài khoản TikTok khỏi Media Studio?')) return
+  if (!(await ask({ title: 'Ngắt kết nối TikTok?', message: 'Media Studio sẽ không đăng được lên tài khoản này cho tới khi bạn kết nối lại.', confirmLabel: 'Ngắt kết nối', danger: true, icon: 'alert' }))) return
   await api.tiktokLogout()
   loadTiktok()
 }
