@@ -1,10 +1,42 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { api, fileUrl } from '../api'
+import { ask } from '../confirm'
 
 /** "List ảnh" mode: one image per scene to swipe through, instead of a video. */
 const props = defineProps({ project: Object, version: String, busy: Boolean })
-const emit = defineEmits(['make'])
+const emit = defineEmits(['make', 'studio', 'caption'])
+
+// Post to TikTok Studio through the browser (same Chrome profile as Google Flow, no TikTok API).
+const VIEW = [
+  { id: 'SELF_ONLY', label: 'Chỉ mình tôi' },
+  { id: 'FRIENDS', label: 'Bạn bè' },
+  { id: 'PUBLIC', label: 'Mọi người' },
+]
+const privacy = ref('SELF_ONLY')
+const aiLabel = ref(true)
+const caption = ref(props.project.tiktokCaption || '')
+watch(() => props.project.tiktokCaption, (c) => { if (c) caption.value = c })
+const tooMany = computed(() => (props.project.slideFiles || []).length > 35)
+async function openLogin() {
+  try {
+    const r = await api.tiktokStudioLogin()
+    msg.value = r.hint
+  } catch (e) {
+    msg.value = 'Không mở được Chrome: ' + e.message
+  }
+}
+async function studio() {
+  const n = Math.min(files.value.length, 35)
+  const who = VIEW.find((v) => v.id === privacy.value).label
+  const ok = await ask({
+    title: `Đăng ${n} ảnh lên TikTok?`,
+    message: `Media Studio sẽ mở TikTok Studio trong Chrome, tải ${n} ảnh lên, điền caption và bấm Đăng với chế độ "${who}".`
+      + (privacy.value === 'PUBLIC' ? ' Bài sẽ hiện công khai ngay.' : ''),
+    confirmLabel: 'Đăng', icon: 'send',
+  })
+  if (ok) emit('studio', { privacy: privacy.value, caption: caption.value, aiLabel: aiLabel.value })
+}
 
 const withText = ref(true)
 // Cover slide text (first picture). Empty = Claude writes it when exporting.
@@ -14,8 +46,16 @@ watch(() => [props.project.coverTitle, props.project.coverTeaser], ([t, te]) => 
   coverTitle.value = t || ''
   coverTeaser.value = te || ''
 })
+// Photo size: 3:4 / 1:1 are shown whole in the middle of the TikTok screen, away from the search bar and caption.
+const RATIOS = [
+  { id: '3:4', label: '3:4', hint: 'Khuyên dùng: TikTok hiện trọn ảnh giữa màn hình, chữ và ảnh không bị thanh tìm kiếm hay caption che.' },
+  { id: '1:1', label: '1:1 vuông', hint: 'Ảnh vuông, an toàn nhất nhưng ảnh nhỏ hơn và bị cắt nhiều hơn.' },
+  { id: 'video', label: 'Như video', hint: 'Cùng khung với video (9:16): đầy màn hình nhưng TikTok che phần trên và dưới.' },
+]
+const ratio = ref(props.project.slideRatio || '3:4')
+const ratioHint = computed(() => (RATIOS.find((r) => r.id === ratio.value) || RATIOS[0]).hint)
 function make() {
-  emit('make', withText.value, { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value })
+  emit('make', withText.value, { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value, ratio: ratio.value })
 }
 const strip = ref(null)
 const cur = ref(0)
@@ -49,10 +89,19 @@ function go(d) {
   <div class="panel">
     <h3>3b · Danh sách ảnh (người xem vuốt qua)</h3>
     <p class="muted small" style="margin:0 0 8px">
-      Mỗi cảnh thành một ảnh JPG, cùng kích thước với video. Dùng để đăng dạng ảnh/carousel, người xem đọc xong vuốt sang ảnh tiếp theo.
+      Mỗi cảnh thành một ảnh JPG. Dùng để đăng dạng ảnh/carousel, người xem đọc xong vuốt sang ảnh tiếp theo.
       Nếu dự án có nhạc nền, nhạc được cắt từ điểm bắt đầu đã chọn và đi kèm trong bộ tải về.
     </p>
-    <label class="row chk"><input v-model="withText" type="checkbox" /> Kèm chữ trên ảnh (đúng vị trí và màu như chế độ script)</label>
+    <div class="ratio">
+      <span class="muted small" id="ratio-lbl">Khung ảnh</span>
+      <div class="seg" role="radiogroup" aria-labelledby="ratio-lbl">
+        <label v-for="r in RATIOS" :key="r.id" :class="{ on: ratio === r.id }">
+          <input v-model="ratio" type="radio" name="slide-ratio" :value="r.id" /> {{ r.label }}
+        </label>
+      </div>
+      <p class="muted small hint">{{ ratioHint }}</p>
+    </div>
+    <label class="row chk"><input v-model="withText" type="checkbox" /> Kèm chữ (dải chữ riêng phía trên ảnh, không đè lên ảnh)</label>
     <div class="cover">
       <div class="muted small"><Icon name="sparkles" /> Trang bìa (ảnh đầu tiên). Để trống thì Claude tự viết khi xuất.</div>
       <input v-model="coverTitle" placeholder="Tên truyện, VD: Sự tích trầu cau" maxlength="80" />
@@ -87,6 +136,35 @@ function go(d) {
           <a class="btn" :href="dl(project.slidesMusic)" :download="project.slidesMusic">⬇ Nhạc</a>
         </div>
       </div>
+      <div class="studio">
+        <h4><Icon name="send" /> Tự đăng lên TikTok Studio</h4>
+        <p class="muted small">
+          Mở TikTok Studio trong Chrome riêng của Media Studio, tải các ảnh theo thứ tự, điền caption rồi bấm Đăng.
+          Không dùng API của TikTok. Gặp captcha hay bước xác minh thì dừng lại để bạn tự xử lý.
+        </p>
+        <div class="row">
+          <button class="small" type="button" @click="openLogin"><Icon name="key" /> Mở Chrome để đăng nhập TikTok</button>
+          <span class="muted small grow">Chỉ cần làm một lần. Đăng nhập xong hãy ĐÓNG cửa sổ Chrome đó rồi mới bấm Đăng.</span>
+        </div>
+        <p v-if="tooMany" class="warn small">TikTok cho tối đa 35 ảnh mỗi bài: chỉ 35 ảnh đầu được đăng.</p>
+        <div class="row" style="justify-content:space-between">
+          <label class="small" style="margin:0">Caption và hashtag</label>
+          <button class="small" type="button" :disabled="busy" @click="emit('caption')"><Icon name="sparkles" /> Claude viết caption</button>
+        </div>
+        <textarea v-model="caption" rows="4" maxlength="2200" placeholder="Câu mở đầu, vài dòng tóm tắt, lời mời theo dõi, #hashtag" />
+        <div class="ratio">
+          <span class="muted small" id="view-lbl">Ai được xem</span>
+          <div class="seg" role="radiogroup" aria-labelledby="view-lbl">
+            <label v-for="v in VIEW" :key="v.id" :class="{ on: privacy === v.id }">
+              <input v-model="privacy" type="radio" name="tt-view" :value="v.id" /> {{ v.label }}
+            </label>
+          </div>
+        </div>
+        <label class="row chk"><input v-model="aiLabel" type="checkbox" /> Gắn nhãn "Nội dung do AI tạo" (ảnh do AI vẽ)</label>
+        <button class="primary wide" style="margin-top:8px" :disabled="busy" @click="studio">
+          <Icon name="send" /> Đăng {{ Math.min(files.length, 35) }} ảnh lên TikTok
+        </button>
+      </div>
       <div class="muted small">Bấm một ảnh để tải riêng. Thứ tự 1, 2, 3… là thứ tự nên chọn khi đăng. Tải về máy tính rồi upload lên TikTok Studio, hoặc chuyển sang điện thoại.</div>
       <div v-if="msg" class="muted small">{{ msg }}</div>
     </template>
@@ -97,6 +175,18 @@ function go(d) {
 .chk { gap: 6px; font-size: 13px; color: var(--text); margin: 0; }
 .chk input { width: auto; }
 .wide { width: 100%; }
+.studio { display: grid; gap: 8px; margin: 10px 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
+.studio h4 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.studio p { margin: 0; }
+.studio .ratio { margin: 0; }
+.warn { color: var(--warn); }
+.ratio { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.ratio .hint { flex-basis: 100%; margin: 0; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--fill); }
+.seg label { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.seg label.on { background: var(--panel); box-shadow: 0 1px 2px rgba(0, 0, 0, .14), 0 0 0 .5px rgba(0, 0, 0, .06); font-weight: 600; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cover { display: grid; gap: 6px; margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
 .strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin-top: 10px; border-radius: 8px;
          background: #000; }
@@ -109,7 +199,7 @@ function go(d) {
 .music audio { height: 32px; min-width: 0; }
 .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; margin-bottom: 6px; }
 .th { position: relative; display: block; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
-.th img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; display: block; }
+.th img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
 .th span { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 11px; background: rgba(0,0,0,.65); color: #fff; }
 .small { font-size: 12px; }
 </style>

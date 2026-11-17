@@ -53,6 +53,7 @@ public class ProjectController {
             p.aspect = body.aspect;
             p.topic = body.topic;
             p.kenBurns = body.kenBurns;
+            if (body.niche != null && Project.NICHES.contains(body.niche)) p.niche = body.niche;
             p.styleBible = body.styleBible;
             if (body.tiktokCaption != null) p.tiktokCaption = body.tiktokCaption;
             p.voice = body.voice;

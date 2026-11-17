@@ -28,7 +28,7 @@ final class CoverCard {
         title = nfc(title).toUpperCase(new Locale("vi"));
         teaser = nfc(teaser);
         kicker = nfc(kicker);
-        boolean portrait = h > w * 1.2;
+        boolean portrait = h > w * 1.2, tall = h >= w * 1.7;
         int shortSide = Math.min(w, h);
 
         BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
@@ -41,11 +41,19 @@ final class CoverCard {
         FontRenderContext frc = g.getFontRenderContext();
 
         g.drawImage(src, 0, 0, w, h, null);
-        // Dark fade from the top (text area) and a lighter one at the bottom; a soft vignette on the sides.
-        double fadeEnd = portrait ? 0.62 : 0.75;
-        g.setPaint(new LinearGradientPaint(0, 0, 0, (float) (h * fadeEnd), new float[]{0f, 0.45f, 1f},
-                new Color[]{new Color(0, 0, 0, 215), new Color(0, 0, 0, 150), new Color(0, 0, 0, 0)}));
-        g.fillRect(0, 0, w, (int) Math.ceil(h * fadeEnd));
+        // Dark fade behind the text area and a lighter one at the bottom; a soft vignette on the sides.
+        if (tall) {
+            // darkest across the safe band where the title sits, fading out below it
+            float end = (float) (h * (PhoneSafeArea.BOTTOM + 0.10));
+            g.setPaint(new LinearGradientPaint(0, 0, 0, end, new float[]{0f, 0.30f, 0.70f, 1f},
+                    new Color[]{new Color(0, 0, 0, 120), new Color(0, 0, 0, 175), new Color(0, 0, 0, 150), new Color(0, 0, 0, 0)}));
+            g.fillRect(0, 0, w, (int) Math.ceil(end));
+        } else {
+            double fadeEnd = 0.75;
+            g.setPaint(new LinearGradientPaint(0, 0, 0, (float) (h * fadeEnd), new float[]{0f, 0.45f, 1f},
+                    new Color[]{new Color(0, 0, 0, 215), new Color(0, 0, 0, 150), new Color(0, 0, 0, 0)}));
+            g.fillRect(0, 0, w, (int) Math.ceil(h * fadeEnd));
+        }
         g.setPaint(new LinearGradientPaint(0, (float) (h * 0.78), 0, h, new float[]{0f, 1f},
                 new Color[]{new Color(0, 0, 0, 0), new Color(0, 0, 0, 120)}));
         g.fillRect(0, (int) (h * 0.78), w, h - (int) (h * 0.78));
@@ -57,15 +65,37 @@ final class CoverCard {
         Color accentBottom = facts ? new Color(0x5C, 0xD2, 0xFF) : new Color(0xF2, 0xA9, 0x2E);
         Color accent = facts ? new Color(0x7F, 0xDB, 0xFF) : new Color(0xF7, 0xC5, 0x4A);
 
-        double maxW = w * (portrait ? 0.86 : 0.80);
-        double y = h * (portrait ? 0.115 : 0.08);
-
-        // 1. kicker: small, letter-spaced, accent colour, between two short lines
+        // Phone: everything inside PhoneSafeArea (below TikTok's search bar, above the caption, clear of the buttons);
+        // the block is centred in that band. Other ratios: from the top, as before.
+        double maxW = w * (tall ? 0.72 : 0.84);
+        double teaserW = w * (tall ? 0.70 : 0.78);
         Font kFont = font(new String[]{"Segoe UI Semibold", "Segoe UI", "Arial"}, Font.PLAIN, shortSide * 0.030f, kicker)
                 .deriveFont(Map.of(TextAttribute.TRACKING, 0.28f));
+        float kSize = kFont.getSize2D();
+        float teSize0 = shortSide * 0.046f;
+        Font teFont0 = font(new String[]{"Segoe UI Semibold", "Segoe UI", "Arial"}, Font.ITALIC, teSize0, teaser.isEmpty() ? "a" : teaser);
+        int teCount = teaser.isEmpty() ? 0 : balancedWrap(teaser, teFont0, frc, teaserW).size();
+        float hSize = shortSide * 0.030f;
+        double fixedH = kSize * 1.9 + (shortSide * 0.014f + shortSide * 0.035) + teCount * teSize0 * 1.4
+                + shortSide * 0.04 + (hSize * 1.25f + hSize);
+        double bandTop = tall ? h * PhoneSafeArea.TOP : h * 0.07, bandBottom = tall ? h * PhoneSafeArea.BOTTOM : h * 0.80;
+        double band = bandBottom - bandTop;
+        float tSize = shortSide * 0.125f;
+        while (tSize > shortSide * 0.06f) {
+            Font f = font(TITLE_FONTS, Font.BOLD, tSize, title);
+            List<String> ls = balancedWrap(title, f, frc, maxW);
+            boolean fits = ls.size() <= 3;
+            for (String l : ls) if (width(f, l) > maxW) fits = false;
+            if (fits && fixedH + ls.size() * tSize * 1.32 + tSize * 0.22 <= band) break;
+            tSize -= shortSide * 0.004f;
+        }
+        Font tf = font(TITLE_FONTS, Font.BOLD, tSize, title);
+        double total = fixedH + balancedWrap(title, tf, frc, maxW).size() * tSize * 1.32 + tSize * 0.22;
+        double y = tall ? bandTop + Math.max(0, (band - total) / 2) : bandTop;
+
+        // 1. kicker: small, letter-spaced, accent colour, between two short lines
         GlyphVector kgv = kFont.createGlyphVector(frc, kicker);
         double kw = kgv.getLogicalBounds().getWidth();
-        float kSize = kFont.getSize2D();
         g.setColor(accent);
         g.fill(kgv.getOutline((float) ((w - kw) / 2), (float) (y + kSize)));
         float lineLen = shortSide * 0.07f, lineGap = shortSide * 0.025f;
@@ -75,8 +105,7 @@ final class CoverCard {
         g.drawLine((int) ((w + kw) / 2 + lineGap), (int) ly, (int) ((w + kw) / 2 + lineGap + lineLen), (int) ly);
         y += kSize * 1.9;
 
-        // 2. title: as big as fits in at most 3 lines
-        float tSize = shortSide * 0.125f;
+        // 2. title: as big as fits in at most 3 lines (on a phone, tSize is already fitted to the safe band)
         Font tFont;
         List<String> tLines;
         while (true) {
@@ -131,7 +160,7 @@ final class CoverCard {
         if (!teaser.isEmpty()) {
             float teSize = shortSide * 0.046f;
             Font teFont = font(new String[]{"Segoe UI Semibold", "Segoe UI", "Arial"}, Font.ITALIC, teSize, teaser);
-            List<String> teLines = balancedWrap(teaser, teFont, frc, w * (portrait ? 0.80 : 0.70));
+            List<String> teLines = balancedWrap(teaser, teFont, frc, teaserW);
             for (String line : teLines) {
                 GlyphVector gv = teFont.createGlyphVector(frc, line);
                 double lw = gv.getLogicalBounds().getWidth();

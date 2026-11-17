@@ -29,7 +29,11 @@ public class TiktokController {
     private final ClaudeCli claude;
     private final FfmpegService ffmpeg;
 
-    public TiktokController(TiktokClient tiktok, ProjectService projects, JobService jobs, ClaudeCli claude, FfmpegService ffmpeg) {
+    private final StudioPoster studio;
+
+    public TiktokController(TiktokClient tiktok, ProjectService projects, JobService jobs, ClaudeCli claude, FfmpegService ffmpeg,
+                            StudioPoster studio) {
+        this.studio = studio;
         this.tiktok = tiktok;
         this.projects = projects;
         this.jobs = jobs;
@@ -125,7 +129,10 @@ public class TiktokController {
                     Write only that file.
                     """.formatted(p.name, nz(p.topic), script, blank(tone) ? "friendly, engaging" : tone, nz(extra),
                     "facts".equals(p.niche) ? "Niche: 'Did you know?' science / space facts. Hook with the most surprising fact as a question;"
-                            + " ask viewers which fact surprised them most; hashtags like #bancobiet #khoahoc #vutru #suthatthuvi when they fit.\n" : "");
+                            + " ask viewers which fact surprised them most; hashtags like #bancobiet #khoahoc #vutru #suthatthuvi when they fit.\n"
+                    : "history".equals(p.niche) ? "Niche: true Vietnamese / world history (wars). Only real, documented facts; never invent."
+                            + " Hook with the most dramatic true fact; invite viewers to follow the history series; hashtags like"
+                            + " #lichsu #lichsuvietnam #suviet #hocsu when they fit.\n" : "");
             // Always Claude: agy (Gemini) often finished without writing the file here.
             claude.runWriting(prompt, "You write social media captions. Never ask questions.", dir, List.of("Write"), false, "claude", null, ctx);
             if (!Files.exists(out)) throw new IOException("AI không tạo tiktok-caption.json");
@@ -142,6 +149,14 @@ public class TiktokController {
             projects.mutate(id, pr -> pr.tiktokCaption = text);
             ctx.log("✔ Mô tả (" + text.length() + " ký tự):\n" + text);
         });
+    }
+
+    // ---------------------------------------------------------------- TikTok Studio (browser, no API)
+
+    /** Posts the exported swipe photos through TikTok Studio in the browser. Body: {privacy, caption?, aiLabel?} */
+    @PostMapping("/projects/{id}/tiktok/studio-post")
+    public Job studioPost(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        return studio.post(id, str(body.get("privacy")), str(body.get("caption")), !Boolean.FALSE.equals(body.get("aiLabel")));
     }
 
     // ---------------------------------------------------------------- publish

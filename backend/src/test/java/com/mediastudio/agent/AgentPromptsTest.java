@@ -75,6 +75,33 @@ class AgentPromptsTest {
     }
 
     @Test
+    void historyNicheHasSevenPartsRealFactsAndMax35() {
+        String h = AgentPrompts.storyboard("Bạch Đằng 938", 50, "Vietnamese", "", "9:16", List.of(), false, "history");
+        org.junit.jupiter.api.Assertions.assertTrue(h.contains("EXACTLY 35") && h.contains("HISTORICAL ACCURACY")
+                && h.contains("PART 7") && h.contains("giả sử") && h.contains("~40%"));
+        String a = AgentPrompts.storyboard("Bạch Đằng 938", 5, "Vietnamese", "", "9:16", List.of(), true, "history");
+        org.junit.jupiter.api.Assertions.assertTrue(a.contains("HISTORICAL ACCURACY") && !a.contains("PART 1"));
+        // every niche: digits + capitalised names, placeholders filled, "%" survives formatting
+        for (String niche : List.of("story", "facts", "history")) {
+            String s = AgentPrompts.storyboard("Bạch Đằng 938", 7, "Vietnamese", "", "9:16", List.of(), false, niche);
+            org.junit.jupiter.api.Assertions.assertTrue(s.contains("WRITING RULES") && s.contains("\"40%\"")
+                    && s.contains("Bạch Đằng 938") && !s.contains("%s") && !s.contains("%d"), niche);
+        }
+    }
+
+    @Test
+    void numbersAreSpelledOutForTheVoice() {
+        org.junit.jupiter.api.Assertions.assertEquals("năm chín trăm ba mươi tám", com.mediastudio.voice.SpokenNumbers.vietnamese("năm 938"));
+        org.junit.jupiter.api.Assertions.assertEquals("mười nghìn quân, một phẩy ba triệu, bốn mươi phần trăm",
+                com.mediastudio.voice.SpokenNumbers.vietnamese("10.000 quân, 1,3 triệu, 40%"));
+        org.junit.jupiter.api.Assertions.assertEquals("ngày mười hai tháng tư năm một nghìn không trăm lẻ năm",
+                com.mediastudio.voice.SpokenNumbers.vietnamese("ngày 12/4/1005"));
+        org.junit.jupiter.api.Assertions.assertEquals("lần thứ tư, hai mươi mốt, mười lăm, một trăm hai mươi tư nghìn",
+                com.mediastudio.voice.SpokenNumbers.vietnamese("lần thứ 4, 21, 15, 124.000"));
+        org.junit.jupiter.api.Assertions.assertEquals("Ngô Quyền", com.mediastudio.voice.SpokenNumbers.vietnamese("Ngô Quyền"));
+    }
+
+    @Test
     void factsNicheHasHookAccuracyAndNoCharacters() {
         String f = AgentPrompts.storyboard("vũ trụ", 6, "Vietnamese", "", "9:16", List.of(c("Bé Na")), false, "facts");
         org.junit.jupiter.api.Assertions.assertTrue(f.contains("HOOK") && f.contains("ACCURACY") && f.contains("99% mọi người"));

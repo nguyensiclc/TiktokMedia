@@ -76,6 +76,23 @@ public class McpConfigWriter {
         return target;
     }
 
+    /** Only the Playwright server (same persistent Chrome profile), whatever the Flow setting: e.g. TikTok Studio. */
+    public Path writePlaywright(Path target, Path outputDir) throws IOException {
+        AppSettings s = settings.get();
+        Files.createDirectories(s.browserProfile());
+        Files.createDirectories(outputDir);
+        List<String> args = new ArrayList<>();
+        if (WINDOWS) args.addAll(List.of("/c", "npx"));
+        args.addAll(List.of("-y", s.playwrightMcpPackage,
+                "--browser", s.playwrightBrowser,
+                "--user-data-dir", s.browserProfile().toAbsolutePath().toString(),
+                "--output-dir", outputDir.toAbsolutePath().toString()));
+        Files.createDirectories(target.getParent());
+        mapper.writeValue(target.toFile(), Map.of("mcpServers",
+                Map.of("playwright", Map.of("command", WINDOWS ? "cmd" : "npx", "args", args))));
+        return target;
+    }
+
     private static boolean voiceboxMcp(AppSettings s) {
         return s.enableVoiceboxMcp && "voicebox".equals(s.voiceProvider);
     }

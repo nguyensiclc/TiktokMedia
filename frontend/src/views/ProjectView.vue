@@ -28,11 +28,21 @@ const NICHES = [
     placeholder: 'VD: Sự tích cây vú sữa, giọng kể ấm áp' },
   { id: 'facts', label: 'Bạn có biết? · khoa học, vũ trụ', icon: 'sparkles', hint: 'Cảnh 1 là câu mở đầu gây tò mò, mỗi cảnh giữa là một sự thật có thật (càng về sau càng bất ngờ), cảnh cuối hỏi người xem để kéo bình luận. Không cần nhân vật.',
     placeholder: 'VD: 5 sự thật đáng sợ về hố đen, giọng kể hào hứng' },
+  { id: 'history', label: 'Lịch sử · chiến tranh', icon: 'flag', hint: 'Luôn 7 phần theo thứ tự: mở đầu gây tò mò, bối cảnh và nguyên nhân, lực lượng hai bên, diễn biến (dài nhất), kết quả, ý nghĩa, kết. Chỉ dùng sự kiện, số liệu, lời nói có thật trong sử sách, không giả sử, không bịa. Tối đa 35 cảnh.',
+    placeholder: 'VD: Trận Bạch Đằng năm 938, Ngô Quyền đánh quân Nam Hán' },
 ]
+const HISTORY_TOPICS = ['Hai Bà Trưng khởi nghĩa', 'Ngô Quyền và trận Bạch Đằng 938', 'Lý Thường Kiệt đánh Tống', 'Kháng chiến chống Nguyên Mông lần 3', 'Khởi nghĩa Lam Sơn', 'Quang Trung đại phá quân Thanh', 'Nội chiến Trịnh – Nguyễn', 'Tây Sơn và Nguyễn Ánh']
 const FACT_TOPICS = ['5 sự thật khó tin về vũ trụ', 'Điều gì xảy ra nếu Mặt Trời biến mất?', 'Sự thật về hố đen', 'Những loài vật kỳ lạ dưới đáy đại dương', 'Cơ thể người có những bí mật gì?', 'Sao Kim: hành tinh địa ngục', 'Nếu Trái Đất ngừng quay', 'Những kỷ lục tự nhiên đáng kinh ngạc']
 const niche = computed(() => NICHES.find((n) => n.id === sb.value.niche) || NICHES[0])
 // a facts video = hook + 5 facts + closing question
-vueWatch(() => sb.value.niche, (n, old) => { if (old && n === 'facts' && sb.value.scenes === 6) sb.value.scenes = 7 })
+// history = the fixed 7-part, 35-scene structure. The niche is saved on the project so "Phân tích" follows it too.
+vueWatch(() => sb.value.niche, (n, old) => {
+  if (!old) return
+  if (n === 'facts' && sb.value.scenes === 6) sb.value.scenes = 7
+  if (n === 'history') sb.value.scenes = 35
+  else if (sb.value.scenes > 35 || (old === 'history' && sb.value.scenes === 35)) sb.value.scenes = n === 'facts' ? 7 : 6
+  if (project.value && project.value.niche !== n) { project.value.niche = n; changed() }
+})
 
 let saveTimer = null
 const watchers = new Map()
@@ -125,6 +135,7 @@ async function load() {
     project.value = await api.project(props.id)
     sb.value.topic = sb.value.topic || project.value.topic || ''
     sb.value.niche = project.value.niche || 'story'
+    if (sb.value.niche === 'history') sb.value.scenes = 35
   } catch (e) {
     error.value = e.message
   }
@@ -320,6 +331,15 @@ onBeforeUnmount(() => {
     <div class="cols">
       <section class="left">
         <div v-show="tab === 'nguon'" id="step-nguon" class="stack">
+        <div class="panel niche-bar">
+          <span id="niche-lbl2" class="muted small">Ngách nội dung</span>
+          <div class="seg" role="radiogroup" aria-labelledby="niche-lbl2">
+            <label v-for="n in NICHES" :key="n.id" :class="{ on: sb.niche === n.id }">
+              <input v-model="sb.niche" type="radio" name="niche2" :value="n.id" /><Icon :name="n.icon" :size="15" /> {{ n.label }}
+            </label>
+          </div>
+          <p class="hint">{{ niche.hint }}</p>
+        </div>
         <SourceImages :project="project" :busy="analyzing" @updated="(p) => { project.sources = p.sources }"
                       @job="onJob" @error="(m) => (error = m)" />
 
@@ -340,12 +360,12 @@ onBeforeUnmount(() => {
           <div class="field">
             <label>Chủ đề / mô tả video</label>
             <textarea v-model="sb.topic" rows="2" :placeholder="niche.placeholder" />
-            <div v-if="sb.niche === 'facts'" class="topic-chips" aria-label="Gợi ý chủ đề">
-              <button v-for="t in FACT_TOPICS" :key="t" type="button" class="topic-chip small" @click="sb.topic = t">{{ t }}</button>
+            <div v-if="sb.niche !== 'story'" class="topic-chips" aria-label="Gợi ý chủ đề">
+              <button v-for="t in (sb.niche === 'history' ? HISTORY_TOPICS : FACT_TOPICS)" :key="t" type="button" class="topic-chip small" @click="sb.topic = t">{{ t }}</button>
             </div>
           </div>
           <div class="row">
-            <div style="width:90px"><label>Số cảnh</label><input v-model.number="sb.scenes" type="number" min="1" max="40" /></div>
+            <div style="width:90px"><label>Số cảnh</label><input v-model.number="sb.scenes" type="number" min="1" :max="sb.niche === 'history' ? 35 : 40" /></div>
             <div style="width:140px"><label>Ngôn ngữ lời thoại</label><input v-model="sb.language" /></div>
             <div class="grow"><label>Phong cách hình</label><input v-model="sb.style" placeholder="cinematic, anime, flat illustration…" /></div>
           </div>
@@ -433,7 +453,9 @@ onBeforeUnmount(() => {
         </div>
 
         <SlidesPanel :project="project" :version="version" :busy="running.some((j) => j.type === 'slides')"
-                     @make="(t, cover) => run(() => api.slides(id, t, cover))" />
+                     @make="(t, cover) => run(() => api.slides(id, t, cover))"
+                     @studio="(b) => run(() => api.tiktokStudioPost(id, b))"
+                     @caption="run(() => api.tiktokCaption(id))" />
 
         <TiktokPublish :project="project" @job="onJob" @error="(m) => (error = m)" @changed="changed" />
 
@@ -476,6 +498,8 @@ onBeforeUnmount(() => {
 .seg label.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.niche-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.niche-bar .hint { flex-basis: 100%; margin: 0; }
 .topic-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s2); }
 .topic-chip { border-radius: var(--r-full); font-weight: 500; }
 /* Unified toolbar: a translucent bar that stays on top of the scrolling content, like a macOS window toolbar. */

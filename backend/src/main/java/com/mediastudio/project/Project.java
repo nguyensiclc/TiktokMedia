@@ -12,8 +12,14 @@ public class Project {
     /** Slow zoom on still images. */
     public boolean kenBurns = true;
     public String topic = "";
-    /** Content niche: "story" (tales, fables: characters + moral) or "facts" ("Bạn có biết?" science / space facts). */
+    /**
+     * Content niche: "story" (tales, fables: characters + moral), "facts" ("Bạn có biết?" science / space facts) or
+     * "history" (wars, resistance, civil wars: fixed cause → forces → events → result → meaning structure, real facts only).
+     */
+    public static final java.util.Set<String> NICHES = java.util.Set.of("story", "facts", "history");
     public String niche = "story";
+    /** Size of exported swipe photos: "video" (same as the video), "3:4" or "1:1". */
+    public String slideRatio = "3:4";
     public Instant createdAt = Instant.now();
     public Instant updatedAt = Instant.now();
     public List<Scene> scenes = new ArrayList<>();

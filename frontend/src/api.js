@@ -92,6 +92,8 @@ export const api = {
   tiktokCreator: () => api.get('/api/tiktok/creator-info'),
   tiktokCaption: (id, body = {}) => api.post(`/api/projects/${id}/tiktok/caption`, body),
   tiktokPublish: (id, body) => api.post(`/api/projects/${id}/tiktok/publish`, body),
+  tiktokStudioLogin: () => api.post('/api/system/tiktok-login'),
+  tiktokStudioPost: (id, body) => api.post(`/api/projects/${id}/tiktok/studio-post`, body),
   tiktokRefresh: (id) => api.post(`/api/projects/${id}/tiktok/refresh`),
 
   clearMedia:(id, sceneId, kind) => api.del(`/api/projects/${id}/scenes/${sceneId}/media?kind=${kind}`),

@@ -106,12 +106,13 @@ public class AgentController {
                 .body(java.nio.file.Files.readAllBytes(png));
     }
 
-    /** {withText?: true, coverTitle?, coverTeaser?} (cover text: null = keep, blank = Claude rewrites it) — exports one JPG per scene (+ zip) for a swipe-through photo post. */
+    /** {withText?: true, coverTitle?, coverTeaser?, ratio?: video|3:4|1:1} (cover text: null = keep, blank = Claude rewrites it) — exports one JPG per scene (+ zip) for a swipe-through photo post. */
     @PostMapping("/slides")
     public Job slides(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
         boolean withText = body == null || !Boolean.FALSE.equals(body.get("withText"));
         String title = body == null || body.get("coverTitle") == null ? null : body.get("coverTitle").toString();
         String teaser = body == null || body.get("coverTeaser") == null ? null : body.get("coverTeaser").toString();
-        return render.slides(id, withText, title, teaser);
+        String ratio = body == null || body.get("ratio") == null ? null : body.get("ratio").toString();
+        return render.slides(id, withText, title, teaser, ratio);
     }
 }

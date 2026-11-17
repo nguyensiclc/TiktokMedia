@@ -55,6 +55,12 @@ public class RenderService {
 
     /** @param coverTitle / coverTeaser null = keep the saved text, blank = let Claude write it again */
     public Job slides(String projectId, boolean withText, String coverTitle, String coverTeaser) {
+        return slides(projectId, withText, coverTitle, coverTeaser, null);
+    }
+
+    /** @param ratio "video" (same size as the video), "3:4" or "1:1"; null = the project's last choice. */
+    public Job slides(String projectId, boolean withText, String coverTitle, String coverTeaser, String ratio) {
+        if (ratio != null && java.util.Set.of("video", "3:4", "1:1").contains(ratio)) projects.mutate(projectId, pr -> pr.slideRatio = ratio);
         if (coverTitle != null || coverTeaser != null) {
             projects.mutate(projectId, pr -> {
                 if (coverTitle != null) pr.coverTitle = coverTitle.trim();
@@ -73,6 +79,9 @@ public class RenderService {
         Path tmp = out.resolve("tmp-slides");
         Files.createDirectories(tmp);
         int w = p.width(), h = p.height();
+        if ("3:4".equals(p.slideRatio)) { w = 1080; h = 1440; }
+        else if ("1:1".equals(p.slideRatio)) { w = 1080; h = 1080; }
+        ctx.log("  khung ảnh: " + w + "x" + h);
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         List<String> files = new ArrayList<>();
         int n = 0;
@@ -87,7 +96,7 @@ public class RenderService {
                         + ":force_original_aspect_ratio=increase,crop=" + w + ":" + h + ",setsar=1", "-update", "1", "-y", src.toString()), tmp, ctx);
                 boolean facts = "facts".equals(p.niche);
                 BufferedImage cover = CoverCard.render(ImageIO.read(src.toFile()), p.coverTitle, p.coverTeaser,
-                        facts ? "BẠN CÓ BIẾT?" : "TRUYỆN CỔ TÍCH", facts, w, h);
+                        facts ? "BẠN CÓ BIẾT?" : "history".equals(p.niche) ? "CHUYỆN LỊCH SỬ" : "TRUYỆN CỔ TÍCH", facts, w, h);
                 String name = String.format("slides-%s-00.jpg", stamp);
                 writeJpg(cover, out.resolve(name));
                 files.add(name);
@@ -111,7 +120,7 @@ public class RenderService {
                 // Picture kept whole (no padding) above its own text band, so the text never covers it.
                 Path src = tmp.resolve(String.format("src-%03d.png", i));
                 ffmpeg.run(List.of("-i", media.toString(), "-frames:v", "1", "-vf",
-                        "scale=" + w + ":" + h + ":force_original_aspect_ratio=decrease,setsar=1", "-update", "1", "-y", src.toString()), tmp, ctx);
+                        "scale=" + w + ":" + h + ":force_original_aspect_ratio=increase,setsar=1", "-update", "1", "-y", src.toString()), tmp, ctx);
                 rgb = SlideCard.render(ImageIO.read(src.toFile()), text, w, h);
             } else {
                 Path base = tmp.resolve(String.format("base-%03d.png", i));
@@ -201,10 +210,12 @@ public class RenderService {
                 Use only the text above: do not search, do not run commands.
                 Write ./cover.json (overwrite) exactly as: {"title": "...", "teaser": "...", "scene": 1}
                 Write only that file.
-                """.formatted(facts ? "a 'Did you know?' science / space facts video" : "a folk tale / story",
+                """.formatted(facts ? "a 'Did you know?' science / space facts video"
+                        : "history".equals(p.niche) ? "a true history video about a war (only real facts)" : "a folk tale / story",
                 p.name, p.topic == null ? "" : p.topic, script,
                 keepTitle.isEmpty() ? "" : "The title is fixed, keep it exactly: " + keepTitle,
-                facts ? "For facts, a punchy title like '5 sự thật về Mặt Trời'." : "");
+                facts ? "For facts, a punchy title like '5 sự thật về Mặt Trời'."
+                        : "history".equals(p.niche) ? "For history, the name people know, e.g. 'Trận Bạch Đằng 938'. The teaser must stay historically true." : "");
         ctx.log("▶ Claude viết tên truyện + câu gợi tò mò cho trang bìa…");
         claude.runWriting(prompt, "You write short, catchy social media cover text. Never ask questions.", dir,
                 List.of("Write"), false, "claude", null, ctx);

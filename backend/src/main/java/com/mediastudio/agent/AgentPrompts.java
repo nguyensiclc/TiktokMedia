@@ -271,10 +271,11 @@ final class AgentPrompts {
         return storyboard(topic, scenes, language, style, aspect, chars, append, "story");
     }
 
-    /** @param niche "story" (tale with characters and a moral) or "facts" ("Bạn có biết?" science / space facts). */
+    /** @param niche "story" (tale with characters and a moral), "facts" ("Bạn có biết?") or "history" (wars). */
     static String storyboard(String topic, int scenes, String language, String style, String aspect,
                              List<CharacterRef> chars, boolean append, String niche) {
         String full = "facts".equals(niche) ? storyboardFacts(topic, scenes, language, style, aspect)
+                : "history".equals(niche) ? storyboardHistory(topic, scenes, language, style, aspect, chars)
                 : storyboardFull(topic, scenes, language, style, aspect, chars);
         if (!append) return full;
         int a = full.indexOf("FIXED STRUCTURE");
@@ -288,7 +289,7 @@ final class AgentPrompts {
      * No recurring characters: the style bible holds only the look, so every picture shares one style.
      */
     static String storyboardFacts(String topic, int scenes, String language, String style, String aspect) {
-        return """
+        return ("""
                 Create a storyboard for a short "Did you know?" video (TikTok / Reels / Shorts) about science, space and
                 nature facts. Its goal is that viewers watch to the end, then comment and share.
 
@@ -329,7 +330,8 @@ final class AgentPrompts {
 
                 For each scene:
                   - narration: 1-3 short, energetic sentences in the narration language (about 5-10 seconds read aloud),
-                    written to be spoken: simple words, no lists, no parentheses, numbers written the way they are read.
+                    written to be spoken: simple words, no lists, no parentheses.
+                """ + WRITING_RULES + """
                   - imagePrompt (English): a vivid, scientifically plausible picture that SHOWS the fact, written as
                     "Subject: <main thing>. Setting: <where, background, light>. Details: <what makes the fact visible, e.g.
                     a scale comparison>. Framing: <shot type, angle>." Vary framing between scenes (extreme wide, close-up
@@ -337,13 +339,137 @@ final class AgentPrompts {
                     charts or numbers in the picture: the narration carries the information.
                 Use only your own knowledge: do not search the web, do not run shell commands or scripts. Create the file directly
                 with your file-writing tool. Write only that file, nothing else.
-                """.formatted(topic, scenes, language,
+                """).formatted(topic, scenes, language,
                 blankTo(style, "cinematic photorealistic, dramatic lighting, rich colours, high detail"), aspect);
+    }
+
+    /**
+     * How narration is written in every niche. Digits are shown as-is in subtitles and slides; the voice step spells
+     * them out (SpokenNumbers). Goes inside a .formatted() text, so "%" is written "%%".
+     */
+    static final String WRITING_RULES = """
+                    WRITING RULES for the narration (except text that must stay word for word from a source):
+                      - Write EVERY number with digits, never with words: years and dates ("năm 938", "ngày 12/3/938",
+                        "mùa xuân năm 939", "thế kỷ 10"), quantities ("10.000 quân", "hơn 1.000 chiến thuyền",
+                        "1,3 triệu", "40%%"), ages, distances, ordinals ("lần thứ 3"). Use "." between thousands and ","
+                        for decimals, the Vietnamese way.
+                      - Capitalise every proper name as a proper noun: people (Ngô Quyền, Lưu Hoằng Tháo), places, rivers,
+                        mountains, countries, dynasties and states (sông Bạch Đằng, Cổ Loa, Đại Việt, nhà Nam Hán), battles,
+                        titles used as names. Capitalise each syllable of Vietnamese names; keep common nouns before them
+                        (sông, núi, nhà, trận) lowercase.
+                """;
+
+    /** Default and maximum scene count of a history video (the 7-part structure below is laid out for 35). */
+    static final int HISTORY_SCENES = 35;
+
+    /**
+     * History niche (resistance wars, invasions, civil wars): always the same 7 parts so viewers understand WHY it
+     * happened, HOW it unfolded and WHAT came of it. Only documented history: no invented events, numbers or quotes.
+     */
+    static String storyboardHistory(String topic, int scenes, String language, String style, String aspect,
+                                    List<CharacterRef> chars) {
+        int n = Math.max(7, Math.min(scenes, HISTORY_SCENES));
+        return characterBrief(chars) + ("""
+                Create a storyboard for a short narrated HISTORY video (TikTok / Reels / Shorts) about a war: a resistance
+                against invaders, an uprising or a civil war. Viewers must come away understanding three things: WHY the
+                war happened, HOW it unfolded, and WHAT came of it.
+
+                Topic / brief: %s
+                Number of scenes: EXACTLY %d (never more, never fewer).
+                Narration language: %s
+                Visual style: %s
+                Aspect ratio: %s
+
+                HISTORICAL ACCURACY (most important rule, it overrides everything else):
+                  - Tell ONLY what really happened according to recognised history (official chronicles such as Đại Việt
+                    sử ký toàn thư, Khâm định Việt sử thông giám cương mục, school history textbooks, encyclopedias, the
+                    consensus of historians). Real people, real places, real dates, real outcomes.
+                  - NEVER invent: no made-up events, battles, characters, dialogue, numbers, dates or quotes. No "giả sử",
+                    "nếu như", "có lẽ là", no alternate history, no speculation presented as fact, no dramatised scenes that
+                    did not happen. Only quote words that history actually records (e.g. a famous proclamation or oath),
+                    and say who said them.
+                  - When sources disagree or a number is uncertain, say so honestly with "theo sử cũ", "sử chép",
+                    "khoảng", "ước tính", or leave the number out. Legends (e.g. a magic sword) are only told as legend,
+                    with "tương truyền", never as fact.
+                  - If the topic contains a mistake, follow the real history, not the mistake.
+                  - Be fair and factual about every side: no insults, no hate, no glorifying violence or gore.
+
+                FIXED STRUCTURE (always, for every history video, in this order). Laid out for 35 scenes; with a different
+                scene count keep all 7 parts in the same order and scale each part's share (Part 4 always the longest):
+                  PART 1 - HOOK (scenes 1-3, ~9%%):
+                    1. A striking opening line: the most dramatic fact or number of the war, or a paradox ("Một đội quân
+                       từng chinh phục nửa thế giới… lại thất bại ở đây."). Never a greeting or "Hôm nay chúng ta sẽ…".
+                       Its picture is the most dramatic moment of the decisive battle.
+                    2. When, where and who against whom (year, place, the two sides).
+                    3. The question the video answers ("Vì sao…?" / "Bằng cách nào…?"), to keep viewers watching.
+                  PART 2 - BACKGROUND AND CAUSES (scenes 4-9, ~17%%):
+                    4. The country before the war (dynasty, rulers, people's life).
+                    5. The enemy (or the opposing faction in a civil war): who they were and how strong.
+                    6. Their ambition or plan, or the internal conflict behind a civil war.
+                    7. The spark: the event that started the war.
+                    8. How the court and the people reacted.
+                    9. The decision to fight: a recorded proclamation, oath, council or call to arms.
+                  PART 3 - THE TWO SIDES (scenes 10-13, ~11%%):
+                    10. Our commander(s): who they were.
+                    11. The enemy commander(s).
+                    12. Comparing the forces (troops, weapons, terrain) with the real recorded figures.
+                    13. Each side's strategy.
+                  PART 4 - HOW IT UNFOLDED (scenes 14-27, ~40%%), in chronological order, with dates when known:
+                    14-17. Early phase: the attack, the first battles, hardships or a strategic retreat.
+                    18-21. Turning point: preparation and counter-attack; scene 21 shows the real clever tactic, ambush,
+                           terrain or weather that changed the war (a true "twist" that keeps people watching).
+                    22-27. The decisive battle(s): the main steps, the climax, the moment of victory or defeat.
+                  PART 5 - RESULT (scenes 28-31, ~11%%):
+                    28. The outcome of the decisive battle: losses, commanders captured, killed or fleeing.
+                    29. How the war ended: treaty, withdrawal, unification.
+                    30. What happened to the main figures afterwards.
+                    31. The country after the war.
+                  PART 6 - MEANING (scenes 32-34, ~9%%):
+                    32. Why one side won (or lost): 2-3 core reasons.
+                    33. Historical significance and lasting influence.
+                    34. What remains today: relics, temples, festivals, street names.
+                  PART 7 - CLOSING (scene 35):
+                    35. One moving closing line and a call to follow for the next episode of the history series.
+                       Its picture is a calm, majestic wide shot (a monument, a river, a sunrise over the battlefield).
+
+                Write ./storyboard.json (overwrite it) as one JSON object:
+                {
+                  "styleBible": "...",
+                  "scenes": [{"narration": "...", "imagePrompt": "..."}]
+                }
+
+                styleBible (English, 80-200 words) is prepended to every image prompt, so it must be self-contained:
+                  - STYLE: one art style for the whole video, colour palette, lighting, mood (e.g. "epic cinematic
+                    historical painting, muted earthy tones with fiery accents, dramatic volumetric light").
+                  - ERA: the period's real clothing, armour, weapons, ships, architecture of each side (historically accurate
+                    for that century and people; no anachronisms, no modern objects).
+                  - CHARACTERS: each historical figure who appears in several scenes, with a fixed name (as written in the
+                    narration, with correct diacritics) and a fixed look: age, face, hair / beard, body, armour or robe with
+                    colours, one distinctive item. Never change these later.
+                  - Always end with: "No text, no captions, no numbers, no maps with labels, no watermarks in the image."
+
+                For each scene:
+                  - narration: 1-3 clear sentences in the narration language (about 5-10 seconds read aloud), written to be
+                    spoken: simple words, no lists, no parentheses.
+                """ + WRITING_RULES + """
+                    Link scenes so the story flows (cause → effect, "Nhưng…", "Ngay sau đó…").
+                  - imagePrompt (English): "Characters: <historical figures from styleBible who appear, or none>. Setting:
+                    <real place, era details, weather, time of day>. Action: <what happens, expressions>. Framing: <shot
+                    type, angle>." Add "<name> is NOT in this scene." when a recurring figure is absent. Vary framing (epic
+                    wide battle, medium shot of a council, close-up of a commander's face). Show the event the narration
+                    describes; no gore. Never ask for text, labelled maps, charts or numbers in the picture.
+                Use only your own knowledge: do not search the web, do not run shell commands or scripts. Create the file
+                directly with your file-writing tool. Write only that file, nothing else.
+                """).formatted(topic, n, language,
+                blankTo(style, chars == null || chars.isEmpty()
+                        ? "epic cinematic historical painting, dramatic lighting, rich detail"
+                        : "exactly the art style of the character reference images (same medium, rendering, palette)"),
+                aspect);
     }
 
     private static String storyboardFull(String topic, int scenes, String language, String style, String aspect,
                                          List<CharacterRef> chars) {
-        return characterBrief(chars) + """
+        return characterBrief(chars) + ("""
                 Create a storyboard for a short narrated video whose scenes must look like ONE consistent film:
                 same characters (same face, hair, age, body, outfit) and the same art style in every scene.
 
@@ -378,6 +504,7 @@ final class AgentPrompts {
 
                 For each scene:
                   - narration: the voice-over, 1-3 natural sentences in the narration language (about 6-12 seconds read aloud).
+                """ + WRITING_RULES + """
                   - imagePrompt (English): ONLY what is specific to this scene. Start with
                     "Characters: <names from the styleBible that appear>." and, when a styleBible character is
                     absent for story reasons (lost, not yet met, elsewhere), add "<name> is NOT in this scene."
@@ -403,7 +530,7 @@ final class AgentPrompts {
                   - When the narration must stay word for word (source text), split it at a natural line break and keep the
                     original order and wording; do not rewrite it to fit.
                 Write only that file, nothing else.
-                """.formatted(topic, scenes, language,
+                """).formatted(topic, scenes, language,
                 blankTo(style, chars == null || chars.isEmpty() ? "cinematic, photorealistic"
                         : "exactly the art style of the character reference images (same medium, rendering, palette)"),
                 aspect);

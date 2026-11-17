@@ -107,7 +107,8 @@ public class VoiceController {
             public boolean cancelled() { return false; }
         };
         if (!Files.exists(f)) {
-            byte[] wav = v ? vieneu.speak(sample, voice, quiet) : voicebox.speak(sample, voice, lang, quiet);
+            String spoken = v || "vi".equals(lang) ? SpokenNumbers.vietnamese(sample) : sample;
+            byte[] wav = v ? vieneu.speak(spoken, voice, quiet) : voicebox.speak(spoken, voice, lang, quiet);
             Path tmp = dir.resolve(f.getFileName() + ".tmp");
             Files.write(tmp, wav);
             Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING);
@@ -165,8 +166,11 @@ public class VoiceController {
                 Scene sc = projects.get(id).scene(sid);
                 ctx.log("▶ (" + (i + 1) + "/" + targets.size() + ") Tạo giọng cho cảnh " + sid);
                 long t0 = System.currentTimeMillis();
-                byte[] wav = v ? vieneu.speak(sc.narration, voice, ctx)
-                        : voicebox.speak(sc.narration, voice, lang, ctx);
+                // Narration keeps digits (shown in subtitles); the voice gets them spelled out.
+                String spoken = v || (lang != null && lang.toLowerCase().startsWith("vi"))
+                        ? SpokenNumbers.vietnamese(sc.narration) : sc.narration;
+                byte[] wav = v ? vieneu.speak(spoken, voice, ctx)
+                        : voicebox.speak(spoken, voice, lang, ctx);
                 String name = "scene-" + sid + "-voice.wav";
                 Path f = projects.file(id, "assets", name);
                 if (speed != 1.0) {

@@ -49,10 +49,10 @@ public class AgentService {
         return storyboard(projectId, topic, count, language, style, append, null);
     }
 
-    /** @param niche "story" / "facts"; null = keep the project's niche. */
+    /** @param niche "story" / "facts" / "history"; null = keep the project's niche. */
     public Job storyboard(String projectId, String topic, int count, String language, String style, boolean append,
                           String niche) {
-        if (niche != null && (niche.equals("story") || niche.equals("facts"))) projects.mutate(projectId, pr -> pr.niche = niche);
+        if (niche != null && Project.NICHES.contains(niche)) projects.mutate(projectId, pr -> pr.niche = niche);
         return jobs.start("storyboard", "Kịch bản: " + topic, projectId, null,
                 ctx -> runStoryboard(projectId, topic, topic, count, language, style, append, ctx));
     }
@@ -97,6 +97,11 @@ public class AgentService {
             String brief = a.path("brief").asText("").trim();
             String style = a.path("style").asText("").trim();
             int count = Math.max(1, Math.min(a.path("scenes").asInt(6), 40));
+            // History videos always use the full 35-scene structure, unless the user listed / asked for scenes.
+            if ("history".equals(p.niche)) {
+                boolean userCount = hasText && note.toLowerCase().contains("cảnh");
+                count = userCount ? Math.min(count, AgentPrompts.HISTORY_SCENES) : AgentPrompts.HISTORY_SCENES;
+            }
             ctx.log("  " + a.path("contentType").asText("?") + " · " + (verbatim ? "đọc nguyên văn" : "lời kể tự do")
                     + " · " + count + " cảnh · " + language);
 

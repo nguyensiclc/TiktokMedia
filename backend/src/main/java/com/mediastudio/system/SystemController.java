@@ -151,6 +151,20 @@ public class SystemController {
                 "hint", "Đăng nhập Google trong cửa sổ Chrome này, rồi ĐÓNG Chrome trước khi chạy tác vụ Flow.");
     }
 
+    /** Opens Chrome with the Playwright profile at TikTok's login page (for "post to TikTok Studio"). */
+    @PostMapping("/system/tiktok-login")
+    public Map<String, Object> tiktokLogin() throws IOException {
+        AppSettings s = settings.get();
+        Path profile = s.browserProfile();
+        Files.createDirectories(profile);
+        String chrome = findChrome(s);
+        if (chrome == null) throw new IllegalStateException("Không tìm thấy chrome.exe — điền đường dẫn trong Cài đặt");
+        new ProcessBuilder(chrome, "--user-data-dir=" + profile.toAbsolutePath(),
+                "https://www.tiktok.com/login?redirect_url=https%3A%2F%2Fwww.tiktok.com%2Ftiktokstudio%2Fupload").start();
+        return Map.of("profile", profile.toString(),
+                "hint", "Đăng nhập TikTok trong cửa sổ Chrome này, rồi ĐÓNG Chrome trước khi bấm Đăng.");
+    }
+
     private static String findChrome(AppSettings s) {
         if (s.chromePath != null && !s.chromePath.isBlank()) return s.chromePath;
         List<String> candidates = new ArrayList<>();
