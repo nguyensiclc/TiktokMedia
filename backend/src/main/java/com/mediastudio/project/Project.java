@@ -76,6 +76,20 @@ public class Project {
         public Instant createdAt = Instant.now();
     }
 
+    // --- Publishing queue (owned by the server: PublishQueue writes these, the project save does not) ---
+    /** When the post should go out; null = not scheduled (posted only with "Đăng ngay"). */
+    public Instant scheduledAt;
+    /** null = not in the queue; QUEUED, PREPARING, READY, POSTING, POSTED, FAILED. */
+    public String queueState;
+    public String queueError;
+    /** Step being worked on, e.g. "Tạo hình Flow". */
+    public String queueStep;
+    public String queuePrivacy = "SELF_ONLY";
+    public boolean queueAiLabel = true;
+    /** Scene count for the script step (null = niche default). */
+    public Integer queueScenes;
+    public Instant postedAt;
+
     /** Source images (book pages, illustrations, photos…) the video is built from; files in assets/. */
     public List<String> sources = new ArrayList<>();
     /** Text transcribed from the sources by the analysis (used verbatim for poems / stories). */

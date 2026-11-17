@@ -98,9 +98,15 @@ public class FlowApiService {
 
     /** Same, with the frame for every picture ("16:9", "4:3", "1:1", "3:4", "9:16"); null = the service's current setting. */
     public List<Result> generate(List<String> prompts, String aspect) throws IOException, InterruptedException {
+        return generate(prompts, aspect, null);
+    }
+
+    /** @param app the service's project key: one Flow project per Media Studio project ("ms-<id>"); null = "default". */
+    public List<Result> generate(List<String> prompts, String aspect, String app) throws IOException, InterruptedException {
         ObjectNode body = json.createObjectNode();
         var arr = body.putArray("prompts");
         prompts.forEach(arr::add);
+        if (app != null) body.put("app_name", app);
         if (aspect != null && List.of("16:9", "4:3", "1:1", "3:4", "9:16").contains(aspect)) body.put("aspect_ratio", aspect);
         HttpResponse<String> r;
         try {
@@ -200,7 +206,7 @@ public class FlowApiService {
             long a = System.currentTimeMillis();
             List<Result> res;
             try {
-                res = generate(prompts, p.aspect);
+                res = generate(prompts, p.aspect, appName(projectId));
             } catch (IOException e) {
                 ctx.log("  ✖ Cảnh " + nums + ": " + e.getMessage());
                 failed.addAll(nums);
@@ -211,6 +217,11 @@ public class FlowApiService {
                 Result r = res.get(k);
                 int n = nums.get(k);
                 String sid = part.get(k);
+                if (r.error() != null && r.error().contains("FLOW_REFUSED")) {
+                    // Google refused ("unusual activity"): every further request would be refused too. Stop everything.
+                    ctx.log("  ✖ Cảnh " + n + ": Google Flow từ chối (hoạt động bất thường)");
+                    throw new IOException(FLOW_REFUSED_MSG);
+                }
                 if (r.error() != null || r.image() == null || r.image().length < 1000) {
                     failed.add(n);
                     ctx.log("  ✖ Cảnh " + n + ": " + (r.error() != null ? r.error() : "ảnh trống"));
@@ -230,7 +241,41 @@ public class FlowApiService {
         ctx.log("✔ Xong " + ok + "/" + ids.size() + " cảnh trong " + (System.currentTimeMillis() - t0) / 1000 + "s"
                 + (failed.isEmpty() ? "" : "; lỗi ở cảnh " + failed));
         if (ok == 0) throw new IOException("Không tạo được cảnh nào qua service tạo ảnh");
+        cleanUpIfComplete(projectId, ctx);
     }
+
+    /** The service's project key for a Media Studio project. */
+    static String appName(String projectId) {
+        return "ms-" + projectId;
+    }
+
+    /**
+     * Every scene has its picture on disk → delete this project's Flow project (Settings → flowApiDeleteWhenDone),
+     * so Flow does not pile up hundreds of pictures. Failing to delete never fails the job.
+     */
+    public void cleanUpIfComplete(String projectId, JobContext ctx) {
+        if (!settings.get().flowApiDeleteWhenDone) return;
+        Project p = projects.get(projectId);
+        boolean complete = p.scenes.stream()
+                .filter(s -> s.imagePrompt != null && !s.imagePrompt.isBlank())
+                .allMatch(s -> s.mediaFile != null && Files.exists(projects.dir(projectId).resolve("assets").resolve(s.mediaFile)));
+        if (!complete) return;
+        try {
+            HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(base() + "/api/v1/projects/"
+                            + appName(projectId) + "?remote=true")).timeout(Duration.ofMinutes(3)).DELETE().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            JsonNode n = r.statusCode() / 100 == 2 ? json.readTree(r.body()) : null;
+            if (n != null && n.path("remote_deleted").asBoolean(false)) ctx.log("🗑 Đã xoá project trên Flow (đã lấy đủ hình về máy)");
+            else if (n != null && !n.path("had_project").asBoolean(true)) { /* nothing on Flow for this project */ }
+            else ctx.log("⚠ Chưa xoá được project trên Flow: " + (n == null ? "HTTP " + r.statusCode() + " " + r.body() : n.path("message").asText()));
+        } catch (Exception e) {
+            ctx.log("⚠ Chưa xoá được project trên Flow: " + e.getMessage());
+        }
+    }
+
+    /** Also checked by the publish queue, which pauses itself on it. */
+    public static final String FLOW_REFUSED_MSG = "Google Flow báo \"hoạt động bất thường\" và từ chối tạo ảnh. Đã dừng: "
+            + "hãy đợi vài giờ (hoặc tới hôm sau) rồi bấm Thử lại, và tạo ít ảnh hơn mỗi lần.";
 
     static String ext(byte[] b) {
         if (b.length > 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return ".jpg";

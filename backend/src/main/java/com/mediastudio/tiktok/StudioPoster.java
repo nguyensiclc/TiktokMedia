@@ -28,6 +28,7 @@ public class StudioPoster {
     /** TikTok's photo-post limit. */
     static final int MAX_PHOTOS = 35;
     static final String RESULT = "tiktok-studio-result.json";
+    public static final java.util.Set<String> PRIVACY_KEYS = java.util.Set.of("SELF_ONLY", "FRIENDS", "PUBLIC");
     static final Map<String, String> PRIVACY = Map.of(
             "SELF_ONLY", "Only me (Chỉ mình tôi)",
             "FRIENDS", "Friends (Bạn bè)",

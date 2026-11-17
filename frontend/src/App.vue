@@ -29,7 +29,7 @@ const focusMain = () => document.getElementById('main')?.focus()
       </div>
       <nav class="links">
         <div class="group">Thư viện</div>
-        <RouterLink to="/" class="link" exact-active-class="active"><Icon name="grid" /> <span>Dự án</span></RouterLink>
+        <RouterLink to="/" class="link" exact-active-class="active"><Icon name="grid" /> <span>Bài đăng</span></RouterLink>
         <RouterLink to="/settings" class="link" active-class="active"><Icon name="settings" /> <span>Cài đặt</span></RouterLink>
       </nav>
       <div class="foot">

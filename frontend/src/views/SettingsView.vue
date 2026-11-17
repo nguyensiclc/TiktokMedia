@@ -221,6 +221,8 @@ onMounted(() => {
           <div class="field"><label for="flow-api-timeout">Thời gian chờ tối thiểu (giây)</label><input id="flow-api-timeout" v-model.number="s.flowApiTimeoutSec" type="number" min="120" max="900" /></div>
           <p class="hint" style="grid-column: 1 / -1; margin: 0">Service tạo lần lượt từng ảnh (~30 giây/ảnh) và chỉ trả kết quả khi ảnh đã hoàn chỉnh, nên app chờ tối đa max(số trên, số ảnh × 60) giây mỗi lần gọi, không cần kiểm tra lại.</p>
         </div>
+        <label class="check"><input type="checkbox" v-model="s.flowApiDeleteWhenDone" /> Xoá project trên Flow khi đã lấy đủ hình về máy</label>
+        <p class="hint" style="margin-top:0">Mỗi dự án dùng một project Flow riêng. Khi mọi cảnh đã có hình trong máy, project đó bị xoá trên Flow để Flow không dồn hàng trăm ảnh (trang nhẹ và ổn định hơn). Không hoàn tác được, nhưng hình đã nằm trong máy.</p>
         <div class="row">
           <button @click="checkFlowApi"><Icon name="flask" /> Kiểm tra service</button>
           <span v-if="flowApi" :class="flowApi.ok ? 'ok' : 'err'">{{ flowApi.ok ? 'Service đang chạy' : flowApi.error }}</span>

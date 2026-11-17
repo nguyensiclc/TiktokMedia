@@ -83,6 +83,8 @@ public class AppSettings {
      * "extension" = the Chrome extension queue.
      */
     public String flowEngine = "api";
+    /** Image service: delete a project's Flow project once all its pictures are on disk (keeps Flow light). */
+    public boolean flowApiDeleteWhenDone = true;
     public String flowApiUrl = "http://localhost:8080";
     /** Minimum wait for one generate call; the client waits max(this, 120, prompts × 60) s (service recommendation). */
     public int flowApiTimeoutSec = 120;
