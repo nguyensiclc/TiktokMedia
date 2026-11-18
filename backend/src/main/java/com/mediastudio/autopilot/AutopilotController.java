@@ -37,7 +37,7 @@ public class AutopilotController {
         String niche = String.valueOf(body.getOrDefault("niche", "history"));
         if (!Project.NICHES.contains(niche)) niche = "story";
         Integer scenes = body.get("scenes") == null ? null : Integer.parseInt(String.valueOf(body.get("scenes")));
-        if (scenes != null) scenes = Math.max(1, Math.min(scenes, "history".equals(niche) ? 35 : 40));
+        if (scenes != null) scenes = Math.max(1, Math.min(scenes, Project.MAX_SCENES));
         String privacy = String.valueOf(body.getOrDefault("privacy", "SELF_ONLY"));
         if (!StudioPoster.PRIVACY_KEYS.contains(privacy)) throw new IllegalArgumentException("Quyền xem không hợp lệ");
         boolean ai = !Boolean.FALSE.equals(body.get("aiLabel"));

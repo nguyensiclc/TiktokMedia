@@ -84,7 +84,7 @@ async function add() {
           <input type="radio" name="add-niche" :checked="niche === n.id" @change="pickNiche(n)" /> {{ n.label }}
         </label>
       </div>
-      <label class="inl">Số cảnh <input v-model.number="scenes" type="number" min="1" :max="niche === 'history' ? 35 : 40" style="width:70px" /></label>
+      <label class="inl">Số cảnh <input v-model.number="scenes" type="number" min="1" :max="34" style="width:70px" /></label>
     </div>
     <div class="opts">
       <label class="row chk"><input v-model="schedule" type="checkbox" /> Hẹn giờ đăng</label>

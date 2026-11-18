@@ -359,8 +359,14 @@ final class AgentPrompts {
                         (sông, núi, nhà, trận) lowercase.
                 """;
 
-    /** Default and maximum scene count of a history video (the 7-part structure below is laid out for 35). */
-    static final int HISTORY_SCENES = 35;
+    /**
+     * Maximum scenes of any storyboard: TikTok allows 35 photos per post and the cover slide is added on top,
+     * so the story itself gets at most 34.
+     */
+    public static final int MAX_SCENES = com.mediastudio.project.Project.MAX_SCENES;
+
+    /** Default and maximum scene count of a history video (the 7-part structure below is laid out for 34). */
+    static final int HISTORY_SCENES = MAX_SCENES;
 
     /**
      * History niche (resistance wars, invasions, civil wars): always the same 7 parts so viewers understand WHY it
@@ -394,7 +400,7 @@ final class AgentPrompts {
                   - If the topic contains a mistake, follow the real history, not the mistake.
                   - Be fair and factual about every side: no insults, no hate, no glorifying violence or gore.
 
-                FIXED STRUCTURE (always, for every history video, in this order). Laid out for 35 scenes; with a different
+                FIXED STRUCTURE (always, for every history video, in this order). Laid out for 34 scenes; with a different
                 scene count keep all 7 parts in the same order and scale each part's share (Part 4 always the longest):
                   PART 1 - HOOK (scenes 1-3, ~9%%):
                     1. A striking opening line: the most dramatic fact or number of the war, or a paradox ("Một đội quân
@@ -402,34 +408,34 @@ final class AgentPrompts {
                        Its picture is the most dramatic moment of the decisive battle.
                     2. When, where and who against whom (year, place, the two sides).
                     3. The question the video answers ("Vì sao…?" / "Bằng cách nào…?"), to keep viewers watching.
-                  PART 2 - BACKGROUND AND CAUSES (scenes 4-9, ~17%%):
+                  PART 2 - BACKGROUND AND CAUSES (scenes 4-8, ~15%%):
                     4. The country before the war (dynasty, rulers, people's life).
                     5. The enemy (or the opposing faction in a civil war): who they were and how strong.
                     6. Their ambition or plan, or the internal conflict behind a civil war.
                     7. The spark: the event that started the war.
-                    8. How the court and the people reacted.
-                    9. The decision to fight: a recorded proclamation, oath, council or call to arms.
-                  PART 3 - THE TWO SIDES (scenes 10-13, ~11%%):
-                    10. Our commander(s): who they were.
-                    11. The enemy commander(s).
-                    12. Comparing the forces (troops, weapons, terrain) with the real recorded figures.
-                    13. Each side's strategy.
-                  PART 4 - HOW IT UNFOLDED (scenes 14-27, ~40%%), in chronological order, with dates when known:
-                    14-17. Early phase: the attack, the first battles, hardships or a strategic retreat.
-                    18-21. Turning point: preparation and counter-attack; scene 21 shows the real clever tactic, ambush,
+                    8. How the court and the people reacted, and the decision to fight: a recorded proclamation,
+                       oath, council or call to arms.
+                  PART 3 - THE TWO SIDES (scenes 9-12, ~12%%):
+                    9. Our commander(s): who they were.
+                    10. The enemy commander(s).
+                    11. Comparing the forces (troops, weapons, terrain) with the real recorded figures.
+                    12. Each side's strategy.
+                  PART 4 - HOW IT UNFOLDED (scenes 13-26, ~41%%), in chronological order, with dates when known:
+                    13-16. Early phase: the attack, the first battles, hardships or a strategic retreat.
+                    17-20. Turning point: preparation and counter-attack; scene 20 shows the real clever tactic, ambush,
                            terrain or weather that changed the war (a true "twist" that keeps people watching).
-                    22-27. The decisive battle(s): the main steps, the climax, the moment of victory or defeat.
-                  PART 5 - RESULT (scenes 28-31, ~11%%):
-                    28. The outcome of the decisive battle: losses, commanders captured, killed or fleeing.
-                    29. How the war ended: treaty, withdrawal, unification.
-                    30. What happened to the main figures afterwards.
-                    31. The country after the war.
-                  PART 6 - MEANING (scenes 32-34, ~9%%):
-                    32. Why one side won (or lost): 2-3 core reasons.
-                    33. Historical significance and lasting influence.
-                    34. What remains today: relics, temples, festivals, street names.
-                  PART 7 - CLOSING (scene 35):
-                    35. One moving closing line and a call to follow for the next episode of the history series.
+                    21-26. The decisive battle(s): the main steps, the climax, the moment of victory or defeat.
+                  PART 5 - RESULT (scenes 27-30, ~12%%):
+                    27. The outcome of the decisive battle: losses, commanders captured, killed or fleeing.
+                    28. How the war ended: treaty, withdrawal, unification.
+                    29. What happened to the main figures afterwards.
+                    30. The country after the war.
+                  PART 6 - MEANING (scenes 31-33, ~9%%):
+                    31. Why one side won (or lost): 2-3 core reasons.
+                    32. Historical significance and lasting influence.
+                    33. What remains today: relics, temples, festivals, street names.
+                  PART 7 - CLOSING (scene 34):
+                    34. One moving closing line and a call to follow for the next episode of the history series.
                        Its picture is a calm, majestic wide shot (a monument, a river, a sunrise over the battlefield).
 
                 Write ./storyboard.json (overwrite it) as one JSON object:
@@ -446,7 +452,27 @@ final class AgentPrompts {
                   - CHARACTERS: each historical figure who appears in several scenes, with a fixed name (as written in the
                     narration, with correct diacritics) and a fixed look: age, face, hair / beard, body, armour or robe with
                     colours, one distinctive item. Never change these later.
+                  - LOOK OF THE TWO SIDES (see VIETNAMESE LOOK below): write it into styleBible so every picture keeps it.
                   - Always end with: "No text, no captions, no numbers, no maps with labels, no watermarks in the image."
+
+                VIETNAMESE LOOK (this channel tells Vietnamese history; every picture must feel unmistakably feudal Vietnam):
+                  - People of Đại Việt (or Văn Lang / Âu Lạc / Giao Chỉ for earlier eras) have Vietnamese faces and wear the
+                    real Vietnamese dress of that century: áo giao lĩnh / áo tứ thân / áo the, khăn vấn or khăn chít đầu,
+                    nón lá, nón chóp for soldiers, áo bào and mũ cánh chuồn for mandarins, simple lacquered leather or scale
+                    armour, red and yellow banners WITHOUT any writing; spears, crossbows (nỏ), long knives, wooden war boats
+                    and stakes (cọc gỗ) as history records.
+                  - Places look Vietnamese: rice paddies, bamboo hedges around villages, banyan trees, communal houses (đình)
+                    and pagodas with curved roof corners (đầu đao), ironwood pillars, tam quan gates, citadel walls of
+                    brick and laterite, wide rivers and estuaries, limestone karst mountains, misty jungle.
+                  - Never draw Vietnamese people, buildings or armour in Chinese, Japanese or Korean style (no samurai armour,
+                    no Forbidden-City palaces, no Qing queues on Vietnamese people). The enemy keeps its own real dress.
+                  - OUR SIDE (Đại Việt leaders, soldiers, villagers): bright clear eyes, kind, gentle and honest faces,
+                    warm calm resolve, brave and disciplined posture; heroes look noble and trustworthy.
+                  - THE INVADERS: fierce scowling faces, heavy frowning brows, glaring narrowed eyes, harsh cruel sneers,
+                    arrogant and menacing posture. Show this ONLY through expression, posture and lighting (darker,
+                    colder light), never by exaggerating ethnic or racial features: no caricature.
+                  - In a civil war between Vietnamese factions, both sides are Vietnamese and both look serious and
+                    dignified, unless the topic / brief says otherwise.
 
                 For each scene:
                   - narration: 1-3 clear sentences in the narration language (about 5-10 seconds read aloud), written to be
@@ -454,7 +480,8 @@ final class AgentPrompts {
                 """ + WRITING_RULES + """
                     Link scenes so the story flows (cause → effect, "Nhưng…", "Ngay sau đó…").
                   - imagePrompt (English): "Characters: <historical figures from styleBible who appear, or none>. Setting:
-                    <real place, era details, weather, time of day>. Action: <what happens, expressions>. Framing: <shot
+                    <real place, Vietnamese era details, weather, time of day>. Action: <what happens, expressions: our side bright-eyed and
+                    kind, invaders scowling and menacing>. Framing: <shot
                     type, angle>." Add "<name> is NOT in this scene." when a recurring figure is absent. Vary framing (epic
                     wide battle, medium shot of a council, close-up of a commander's face). Show the event the narration
                     describes; no gore. Never ask for text, labelled maps, charts or numbers in the picture.
@@ -462,7 +489,7 @@ final class AgentPrompts {
                 directly with your file-writing tool. Write only that file, nothing else.
                 """).formatted(topic, n, language,
                 blankTo(style, chars == null || chars.isEmpty()
-                        ? "epic cinematic historical painting, dramatic lighting, rich detail"
+                        ? "epic cinematic historical painting of feudal Vietnam, dramatic lighting, rich detail"
                         : "exactly the art style of the character reference images (same medium, rendering, palette)"),
                 aspect);
     }

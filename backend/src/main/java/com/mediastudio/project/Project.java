@@ -17,6 +17,9 @@ public class Project {
      * "history" (wars, resistance, civil wars: fixed cause → forces → events → result → meaning structure, real facts only).
      */
     public static final java.util.Set<String> NICHES = java.util.Set.of("story", "facts", "history");
+
+    /** Story scenes per post: TikTok allows 35 photos and the cover slide takes one. */
+    public static final int MAX_SCENES = 34;
     public String niche = "story";
     /** Size of exported swipe photos: "video" (same as the video), "3:4" or "1:1". */
     public String slideRatio = "3:4";

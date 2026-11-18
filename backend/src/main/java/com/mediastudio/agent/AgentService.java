@@ -96,8 +96,8 @@ public class AgentService {
             boolean verbatim = "verbatim".equals(a.path("narrationMode").asText()) && !sourceText.isEmpty();
             String brief = a.path("brief").asText("").trim();
             String style = a.path("style").asText("").trim();
-            int count = Math.max(1, Math.min(a.path("scenes").asInt(6), 40));
-            // History videos always use the full 35-scene structure, unless the user listed / asked for scenes.
+            int count = Math.max(1, Math.min(a.path("scenes").asInt(6), AgentPrompts.MAX_SCENES));
+            // History videos always use the full 34-scene structure, unless the user listed / asked for scenes.
             if ("history".equals(p.niche)) {
                 boolean userCount = hasText && note.toLowerCase().contains("cảnh");
                 count = userCount ? Math.min(count, AgentPrompts.HISTORY_SCENES) : AgentPrompts.HISTORY_SCENES;

@@ -28,19 +28,19 @@ const NICHES = [
     placeholder: 'VD: Sự tích cây vú sữa, giọng kể ấm áp' },
   { id: 'facts', label: 'Bạn có biết? · khoa học, vũ trụ', icon: 'sparkles', hint: 'Cảnh 1 là câu mở đầu gây tò mò, mỗi cảnh giữa là một sự thật có thật (càng về sau càng bất ngờ), cảnh cuối hỏi người xem để kéo bình luận. Không cần nhân vật.',
     placeholder: 'VD: 5 sự thật đáng sợ về hố đen, giọng kể hào hứng' },
-  { id: 'history', label: 'Lịch sử · chiến tranh', icon: 'flag', hint: 'Luôn 7 phần theo thứ tự: mở đầu gây tò mò, bối cảnh và nguyên nhân, lực lượng hai bên, diễn biến (dài nhất), kết quả, ý nghĩa, kết. Chỉ dùng sự kiện, số liệu, lời nói có thật trong sử sách, không giả sử, không bịa. Tối đa 35 cảnh.',
+  { id: 'history', label: 'Lịch sử · chiến tranh', icon: 'flag', hint: 'Luôn 7 phần theo thứ tự: mở đầu gây tò mò, bối cảnh và nguyên nhân, lực lượng hai bên, diễn biến (dài nhất), kết quả, ý nghĩa, kết. Chỉ dùng sự kiện, số liệu, lời nói có thật trong sử sách, không giả sử, không bịa. Tối đa 34 cảnh (cộng ảnh bìa là 35 ảnh, mức tối đa của TikTok).',
     placeholder: 'VD: Trận Bạch Đằng năm 938, Ngô Quyền đánh quân Nam Hán' },
 ]
 const HISTORY_TOPICS = ['Hai Bà Trưng khởi nghĩa', 'Ngô Quyền và trận Bạch Đằng 938', 'Lý Thường Kiệt đánh Tống', 'Kháng chiến chống Nguyên Mông lần 3', 'Khởi nghĩa Lam Sơn', 'Quang Trung đại phá quân Thanh', 'Nội chiến Trịnh – Nguyễn', 'Tây Sơn và Nguyễn Ánh']
 const FACT_TOPICS = ['5 sự thật khó tin về vũ trụ', 'Điều gì xảy ra nếu Mặt Trời biến mất?', 'Sự thật về hố đen', 'Những loài vật kỳ lạ dưới đáy đại dương', 'Cơ thể người có những bí mật gì?', 'Sao Kim: hành tinh địa ngục', 'Nếu Trái Đất ngừng quay', 'Những kỷ lục tự nhiên đáng kinh ngạc']
 const niche = computed(() => NICHES.find((n) => n.id === sb.value.niche) || NICHES[0])
 // a facts video = hook + 5 facts + closing question
-// history = the fixed 7-part, 35-scene structure. The niche is saved on the project so "Phân tích" follows it too.
+// history = the fixed 7-part, 34-scene structure. The niche is saved on the project so "Phân tích" follows it too.
 vueWatch(() => sb.value.niche, (n, old) => {
   if (!old) return
   if (n === 'facts' && sb.value.scenes === 6) sb.value.scenes = 7
-  if (n === 'history') sb.value.scenes = 35
-  else if (sb.value.scenes > 35 || (old === 'history' && sb.value.scenes === 35)) sb.value.scenes = n === 'facts' ? 7 : 6
+  if (n === 'history') sb.value.scenes = 34
+  else if (sb.value.scenes > 34 || (old === 'history' && sb.value.scenes === 34)) sb.value.scenes = n === 'facts' ? 7 : 6
   if (project.value && project.value.niche !== n) { project.value.niche = n; changed() }
 })
 
@@ -135,7 +135,7 @@ async function load() {
     project.value = await api.project(props.id)
     sb.value.topic = sb.value.topic || project.value.topic || ''
     sb.value.niche = project.value.niche || 'story'
-    if (sb.value.niche === 'history') sb.value.scenes = 35
+    if (sb.value.niche === 'history') sb.value.scenes = 34
   } catch (e) {
     error.value = e.message
   }
@@ -365,7 +365,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="row">
-            <div style="width:90px"><label>Số cảnh</label><input v-model.number="sb.scenes" type="number" min="1" :max="sb.niche === 'history' ? 35 : 40" /></div>
+            <div style="width:90px"><label>Số cảnh</label><input v-model.number="sb.scenes" type="number" min="1" :max="34" /></div>
             <div style="width:140px"><label>Ngôn ngữ lời thoại</label><input v-model="sb.language" /></div>
             <div class="grow"><label>Phong cách hình</label><input v-model="sb.style" placeholder="cinematic, anime, flat illustration…" /></div>
           </div>

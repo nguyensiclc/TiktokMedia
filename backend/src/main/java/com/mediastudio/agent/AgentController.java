@@ -38,7 +38,7 @@ public class AgentController {
         String topic = String.valueOf(body.getOrDefault("topic", "")).trim();
         if (topic.isEmpty()) throw new IllegalArgumentException("Hãy nhập chủ đề");
         int scenes = Integer.parseInt(String.valueOf(body.getOrDefault("scenes", 6)));
-        return agent.storyboard(id, topic, Math.max(1, Math.min(scenes, 40)),
+        return agent.storyboard(id, topic, Math.max(1, Math.min(scenes, AgentPrompts.MAX_SCENES)),
                 String.valueOf(body.getOrDefault("language", "Vietnamese")),
                 String.valueOf(body.getOrDefault("style", "")),
                 Boolean.parseBoolean(String.valueOf(body.getOrDefault("append", false))),
