@@ -48,6 +48,7 @@ export const api = {
   agent: (id, prompt) => api.post(`/api/projects/${id}/agent`, { prompt }),
   render: (id) => api.post(`/api/projects/${id}/render`),
   slides: (id, withText = true, cover = {}) => api.post(`/api/projects/${id}/slides`, { withText, ...cover }),
+  slidesCover: (id, cover = {}) => api.post(`/api/projects/${id}/slides/cover`, cover),
   uploadScene: (id, sceneId, kind, file) => {
     const f = new FormData()
     f.append('kind', kind)

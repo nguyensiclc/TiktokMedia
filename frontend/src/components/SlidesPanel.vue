@@ -5,7 +5,7 @@ import { ask } from '../confirm'
 
 /** "List ảnh" mode: one image per scene to swipe through, instead of a video. */
 const props = defineProps({ project: Object, version: String, busy: Boolean })
-const emit = defineEmits(['make', 'studio', 'caption'])
+const emit = defineEmits(['make', 'cover', 'studio', 'caption'])
 
 // Post to TikTok Studio through the browser (same Chrome profile as Google Flow, no TikTok API).
 const VIEW = [
@@ -54,6 +54,9 @@ const RATIOS = [
 ]
 const ratio = ref(props.project.slideRatio || '3:4')
 const ratioHint = computed(() => (RATIOS.find((r) => r.id === ratio.value) || RATIOS[0]).hint)
+function remakeCover() {
+  emit('cover', { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value })
+}
 function make() {
   emit('make', withText.value, { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value, ratio: ratio.value })
 }
@@ -106,6 +109,10 @@ function go(d) {
       <div class="muted small"><Icon name="sparkles" /> Trang bìa (ảnh đầu tiên). Để trống thì Claude tự viết khi xuất.</div>
       <input v-model="coverTitle" placeholder="Tên truyện, VD: Sự tích trầu cau" maxlength="80" />
       <input v-model="coverTeaser" placeholder="Câu gợi tò mò, VD: Vì sao người em hoá thành tảng đá bên suối?" maxlength="140" />
+      <button v-if="(project.slideFiles || []).length" class="small" :disabled="busy" @click="remakeCover"
+              title="Chỉ làm lại ảnh bìa, giữ nguyên các ảnh cảnh đã xuất">
+        <Icon name="sparkles" /> Tạo lại riêng ảnh bìa
+      </button>
     </div>
     <button class="primary wide" style="margin-top:8px" :disabled="busy" @click="make">
       <Icon name="image" /> {{ busy ? 'Đang xuất…' : 'Xuất danh sách ảnh' }}

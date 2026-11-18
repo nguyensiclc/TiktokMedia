@@ -115,4 +115,12 @@ public class AgentController {
         String ratio = body == null || body.get("ratio") == null ? null : body.get("ratio").toString();
         return render.slides(id, withText, title, teaser, ratio);
     }
+
+    /** {coverTitle?, coverTeaser?} (null = keep, blank = Claude rewrites it) — makes only the cover slide again. */
+    @PostMapping("/slides/cover")
+    public Job slidesCover(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
+        String title = body == null || body.get("coverTitle") == null ? null : body.get("coverTitle").toString();
+        String teaser = body == null || body.get("coverTeaser") == null ? null : body.get("coverTeaser").toString();
+        return render.cover(id, title, teaser);
+    }
 }

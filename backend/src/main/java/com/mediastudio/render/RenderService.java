@@ -61,14 +61,92 @@ public class RenderService {
     /** @param ratio "video" (same size as the video), "3:4" or "1:1"; null = the project's last choice. */
     public Job slides(String projectId, boolean withText, String coverTitle, String coverTeaser, String ratio) {
         if (ratio != null && java.util.Set.of("video", "3:4", "1:1").contains(ratio)) projects.mutate(projectId, pr -> pr.slideRatio = ratio);
-        if (coverTitle != null || coverTeaser != null) {
-            projects.mutate(projectId, pr -> {
-                if (coverTitle != null) pr.coverTitle = coverTitle.trim();
-                if (coverTeaser != null) pr.coverTeaser = coverTeaser.trim();
-                if (coverTitle != null && coverTitle.isBlank()) pr.coverScene = null;
-            });
-        }
+        saveCoverText(projectId, coverTitle, coverTeaser);
         return jobs.start("slides", "Xuất ảnh lướt", projectId, null, ctx -> doSlides(projectId, withText, ctx));
+    }
+
+    private void saveCoverText(String projectId, String coverTitle, String coverTeaser) {
+        if (coverTitle == null && coverTeaser == null) return;
+        projects.mutate(projectId, pr -> {
+            if (coverTitle != null) pr.coverTitle = coverTitle.trim();
+            if (coverTeaser != null) pr.coverTeaser = coverTeaser.trim();
+            if (coverTitle != null && coverTitle.isBlank()) pr.coverScene = null;
+        });
+    }
+
+    private static final java.util.regex.Pattern SLIDE_NAME = java.util.regex.Pattern.compile("slides-(\\d{8}-\\d{6})-\\d+\\.jpg");
+
+    /**
+     * Makes only the cover slide again (text null = keep, blank = Claude rewrites it) and puts it first in the
+     * exported set, replacing the old cover; the scene photos are left as they are.
+     */
+    public Job cover(String projectId, String coverTitle, String coverTeaser) {
+        Project p0 = projects.get(projectId);
+        if (p0.slideFiles == null || p0.slideFiles.isEmpty()) throw new IllegalArgumentException("Hãy xuất danh sách ảnh trước");
+        saveCoverText(projectId, coverTitle, coverTeaser);
+        return jobs.start("slides", "Tạo lại ảnh bìa", projectId, null, ctx -> {
+            Project p = projects.get(projectId);
+            java.util.regex.Matcher m = SLIDE_NAME.matcher(p.slideFiles.get(0));
+            String stamp = m.matches() ? m.group(1) : LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+            Path assets = projects.folder(projectId, "assets");
+            Path out = projects.folder(projectId, "output");
+            Path tmp = out.resolve("tmp-cover");
+            Files.createDirectories(tmp);
+            int[] wh = slideSize(p);
+            String name = String.format("slides-%s-00.jpg", stamp);
+            if (!renderCover(p, assets, tmp, wh[0], wh[1], out.resolve(name), ctx))
+                throw new IllegalStateException("Chưa cảnh nào có hình để làm ảnh bìa");
+            List<String> files = new ArrayList<>();
+            files.add(name);
+            for (String f : p.slideFiles) if (!f.equals(name)) files.add(f);
+            String zipName = "slides-" + stamp + ".zip";
+            String music = p.slidesMusic != null && Files.exists(out.resolve(p.slidesMusic)) ? p.slidesMusic : null;
+            writeZip(out, zipName, files, music);
+            projects.mutate(projectId, pr -> {
+                pr.slideFiles = files;
+                pr.slidesZip = zipName;
+            });
+            cleanup(tmp);
+            ctx.log("✔ Đã tạo lại ảnh bìa: " + files.size() + " ảnh trong bộ");
+        });
+    }
+
+    private static int[] slideSize(Project p) {
+        if ("3:4".equals(p.slideRatio)) return new int[]{1080, 1440};
+        if ("1:1".equals(p.slideRatio)) return new int[]{1080, 1080};
+        return new int[]{p.width(), p.height()};
+    }
+
+    /** Cover slide: story title + a curiosity line over the most fitting picture. False when no scene has a picture. */
+    private boolean renderCover(Project p, Path assets, Path tmp, int w, int h, Path dest, JobContext ctx) throws Exception {
+        p = ensureCoverText(p, projects.dir(p.id), ctx);
+        Path coverMedia = coverMedia(p, assets);
+        if (coverMedia == null) return false;
+        Path src = tmp.resolve("cover-src.png");
+        ffmpeg.run(List.of("-i", coverMedia.toString(), "-frames:v", "1", "-vf", "scale=" + w + ":" + h
+                + ":force_original_aspect_ratio=increase,crop=" + w + ":" + h + ",setsar=1", "-update", "1", "-y", src.toString()), tmp, ctx);
+        boolean facts = "facts".equals(p.niche);
+        BufferedImage cover = CoverCard.render(ImageIO.read(src.toFile()), p.coverTitle, p.coverTeaser,
+                facts ? "BẠN CÓ BIẾT?" : "history".equals(p.niche) ? "CHUYỆN LỊCH SỬ" : "TRUYỆN CỔ TÍCH", facts, w, h);
+        writeJpg(cover, dest);
+        ctx.log("▶ Trang bìa: " + p.coverTitle + " — " + p.coverTeaser);
+        return true;
+    }
+
+    private static void writeZip(Path out, String zipName, List<String> files, String musicName) throws IOException {
+        try (var zos = new java.util.zip.ZipOutputStream(Files.newOutputStream(out.resolve(zipName)))) {
+            int k = 0;
+            for (String f : files) {
+                zos.putNextEntry(new java.util.zip.ZipEntry(String.format("slide-%02d.jpg", ++k)));
+                Files.copy(out.resolve(f), zos);
+                zos.closeEntry();
+            }
+            if (musicName != null) {
+                zos.putNextEntry(new java.util.zip.ZipEntry("nhac-nen.mp3"));
+                Files.copy(out.resolve(musicName), zos);
+                zos.closeEntry();
+            }
+        }
     }
 
     private void doSlides(String projectId, boolean withText, JobContext ctx) throws Exception {
@@ -78,9 +156,7 @@ public class RenderService {
         Path out = projects.folder(projectId, "output");
         Path tmp = out.resolve("tmp-slides");
         Files.createDirectories(tmp);
-        int w = p.width(), h = p.height();
-        if ("3:4".equals(p.slideRatio)) { w = 1080; h = 1440; }
-        else if ("1:1".equals(p.slideRatio)) { w = 1080; h = 1080; }
+        int w = slideSize(p)[0], h = slideSize(p)[1];
         ctx.log("  khung ảnh: " + w + "x" + h);
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         List<String> files = new ArrayList<>();
@@ -88,20 +164,8 @@ public class RenderService {
 
         // Cover first: story title + a curiosity line over the most fitting picture.
         try {
-            p = ensureCoverText(p, projects.dir(projectId), ctx);
-            Path coverMedia = coverMedia(p, assets);
-            if (coverMedia != null) {
-                Path src = tmp.resolve("cover-src.png");
-                ffmpeg.run(List.of("-i", coverMedia.toString(), "-frames:v", "1", "-vf", "scale=" + w + ":" + h
-                        + ":force_original_aspect_ratio=increase,crop=" + w + ":" + h + ",setsar=1", "-update", "1", "-y", src.toString()), tmp, ctx);
-                boolean facts = "facts".equals(p.niche);
-                BufferedImage cover = CoverCard.render(ImageIO.read(src.toFile()), p.coverTitle, p.coverTeaser,
-                        facts ? "BẠN CÓ BIẾT?" : "history".equals(p.niche) ? "CHUYỆN LỊCH SỬ" : "TRUYỆN CỔ TÍCH", facts, w, h);
-                String name = String.format("slides-%s-00.jpg", stamp);
-                writeJpg(cover, out.resolve(name));
-                files.add(name);
-                ctx.log("▶ Trang bìa: " + p.coverTitle + " — " + p.coverTeaser);
-            }
+            String name = String.format("slides-%s-00.jpg", stamp);
+            if (renderCover(p, assets, tmp, w, h, out.resolve(name), ctx)) files.add(name);
         } catch (Exception e) {
             ctx.log("⚠ Không tạo được trang bìa (" + e.getMessage() + "), xuất tiếp các ảnh cảnh");
         }
@@ -158,19 +222,7 @@ public class RenderService {
         }
 
         String zipName = "slides-" + stamp + ".zip";
-        try (var zos = new java.util.zip.ZipOutputStream(Files.newOutputStream(out.resolve(zipName)))) {
-            int k = 0;
-            for (String f : files) {
-                zos.putNextEntry(new java.util.zip.ZipEntry(String.format("slide-%02d.jpg", ++k)));
-                Files.copy(out.resolve(f), zos);
-                zos.closeEntry();
-            }
-            if (musicName != null) {
-                zos.putNextEntry(new java.util.zip.ZipEntry("nhac-nen.mp3"));
-                Files.copy(out.resolve(musicName), zos);
-                zos.closeEntry();
-            }
-        }
+        writeZip(out, zipName, files, musicName);
         String musicFinal = musicName;
         projects.mutate(projectId, pr -> {
             pr.slideFiles = files;

@@ -454,6 +454,7 @@ onBeforeUnmount(() => {
 
         <SlidesPanel :project="project" :version="version" :busy="running.some((j) => j.type === 'slides')"
                      @make="(t, cover) => run(() => api.slides(id, t, cover))"
+                     @cover="(cover) => run(() => api.slidesCover(id, cover))"
                      @studio="(b) => run(() => api.tiktokStudioPost(id, b))"
                      @caption="run(() => api.tiktokCaption(id))" />
 
