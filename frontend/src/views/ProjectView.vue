@@ -22,7 +22,7 @@ const jobs = ref([])
 const activeJob = ref(null)
 const saving = ref(false)
 const customPrompt = ref('')
-const sb = ref({ topic: '', scenes: 6, language: 'Vietnamese', style: '', append: false, niche: 'story' })
+const sb = ref({ topic: '', scenes: 6, language: 'Vietnamese', style: '', chibi: false, append: false, niche: 'story' })
 const NICHES = [
   { id: 'story', label: 'Truyện · cổ tích', icon: 'file', hint: 'Có nhân vật xuyên suốt, cảnh mở đầu giới thiệu và cảnh cuối nêu bài học.',
     placeholder: 'VD: Sự tích cây vú sữa, giọng kể ấm áp' },
@@ -343,7 +343,8 @@ onBeforeUnmount(() => {
         <SourceImages :project="project" :busy="analyzing" @updated="(p) => { project.sources = p.sources }"
                       @job="onJob" @error="(m) => (error = m)" />
 
-        <CharacterRefs :project="project" @updated="onCharacters" @error="(m) => (error = m)" />
+        <CharacterRefs :project="project" @updated="onCharacters" @error="(m) => (error = m)"
+                       @portraits="(ids) => run(() => api.portraits(id, ids))" />
         </div>
 
         <div v-show="tab === 'kichban'" id="step-kichban" class="panel">
@@ -370,6 +371,7 @@ onBeforeUnmount(() => {
             <div class="grow"><label>Phong cách hình</label><input v-model="sb.style" placeholder="cinematic, anime, flat illustration…" /></div>
           </div>
           <div class="row" style="margin-top:10px">
+            <label class="row chk" title="Nhân vật đầu to, mắt to, thân nhỏ dễ thương (2–3 đầu)"><input v-model="sb.chibi" type="checkbox" /> Nhân vật chibi dễ thương</label>
             <label class="row chk"><input v-model="sb.append" type="checkbox" /> Thêm vào cuối (không thay thế)</label>
             <span class="grow" />
             <button class="primary" :disabled="!sb.topic" @click="run(() => api.storyboard(id, sb))"><Icon name="sparkles" /> Tạo kịch bản</button>

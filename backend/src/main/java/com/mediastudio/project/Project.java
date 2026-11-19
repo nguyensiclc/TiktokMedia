@@ -20,6 +20,11 @@ public class Project {
 
     /** Story scenes per post: TikTok allows 35 photos and the cover slide takes one. */
     public static final int MAX_SCENES = 34;
+
+    /** Art style for cute chibi characters (the "chibi" option of the script step). */
+    public static final String CHIBI_STYLE = "cute chibi 3D cartoon style, super-deformed characters about 2-3 heads tall, "
+            + "big round head, large sparkling expressive eyes, small rounded body, soft pastel-rich colours, "
+            + "smooth clean shading, lighting and palette following each scene mood, toy-like charm, detailed but simple backgrounds";
     public String niche = "story";
     /** Size of exported swipe photos: "video" (same as the video), "3:4" or "1:1". */
     public String slideRatio = "3:4";
@@ -91,6 +96,8 @@ public class Project {
     public boolean queueAiLabel = true;
     /** Scene count for the script step (null = niche default). */
     public Integer queueScenes;
+    /** Posts list: write the script with cute chibi characters. */
+    public boolean queueChibi;
     public Instant postedAt;
 
     /** Source images (book pages, illustrations, photos…) the video is built from; files in assets/. */

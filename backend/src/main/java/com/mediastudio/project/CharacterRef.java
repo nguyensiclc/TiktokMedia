@@ -13,4 +13,6 @@ public class CharacterRef {
     public String file;
     /** Canva media id once uploaded (reused for imageReferences). */
     public String canvaMediaId;
+    /** Made by the script step (the main figures it found); its picture is a Flow portrait. Dropped on a new script. */
+    public boolean auto;
 }

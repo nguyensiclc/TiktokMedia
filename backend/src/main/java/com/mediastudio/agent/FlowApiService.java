@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mediastudio.job.Job;
 import com.mediastudio.job.JobContext;
 import com.mediastudio.job.JobService;
+import com.mediastudio.project.CharacterRef;
 import com.mediastudio.project.Project;
 import com.mediastudio.project.ProjectService;
 import com.mediastudio.project.Scene;
@@ -103,9 +104,27 @@ public class FlowApiService {
 
     /** @param app the service's project key: one Flow project per Media Studio project ("ms-<id>"); null = "default". */
     public List<Result> generate(List<String> prompts, String aspect, String app) throws IOException, InterruptedException {
+        return generate(prompts, null, aspect, app);
+    }
+
+    /**
+     * @param refs per prompt, absolute paths of reference images (character portraits) the service uploads to Flow
+     *             with that prompt; null or all empty = plain prompts.
+     */
+    public List<Result> generate(List<String> prompts, List<List<String>> refs, String aspect, String app) throws IOException, InterruptedException {
         ObjectNode body = json.createObjectNode();
-        var arr = body.putArray("prompts");
-        prompts.forEach(arr::add);
+        if (refs != null && refs.stream().anyMatch(r -> r != null && !r.isEmpty())) {
+            var items = body.putArray("items");
+            for (int i = 0; i < prompts.size(); i++) {
+                ObjectNode it = items.addObject();
+                it.put("prompt", prompts.get(i));
+                List<String> r = i < refs.size() ? refs.get(i) : null;
+                if (r != null && !r.isEmpty()) r.forEach(it.putArray("reference_images")::add);
+            }
+        } else {
+            var arr = body.putArray("prompts");
+            prompts.forEach(arr::add);
+        }
         if (app != null) body.put("app_name", app);
         if (aspect != null && List.of("16:9", "4:3", "1:1", "3:4", "9:16").contains(aspect)) body.put("aspect_ratio", aspect);
         HttpResponse<String> r;
@@ -196,17 +215,30 @@ public class FlowApiService {
             List<String> part = ids.subList(i, Math.min(ids.size(), i + batch));
             Project p = projects.get(projectId);
             List<String> prompts = new ArrayList<>();
+            List<List<String>> refs = new ArrayList<>();
             List<Integer> nums = new ArrayList<>();
             for (String sid : part) {
                 Scene sc = p.scene(sid);
-                prompts.add(AgentPrompts.textOnlyImagePrompt(p, sc));
+                List<String> r = new ArrayList<>();
+                for (CharacterRef c : AgentPrompts.sceneCharacters(p, sc)) {
+                    Path f = dir.resolve("assets").resolve(c.file);
+                    if (Files.exists(f)) r.add(f.toAbsolutePath().toString());
+                }
+                String prompt = AgentPrompts.textOnlyImagePrompt(p, sc);
+                if (!r.isEmpty()) prompt += "\nThe attached reference image(s) show how these characters look: keep the same"
+                        + " face, hair, costume, armour and colours, but draw a completely new picture of THIS scene"
+                        + " (new pose, action, setting and framing; do not copy the reference background).";
+                prompts.add(prompt);
+                refs.add(r);
                 nums.add(p.scenes.indexOf(sc) + 1);
             }
+            int withRefs = (int) refs.stream().filter(r -> !r.isEmpty()).count();
+            if (withRefs > 0) ctx.log("  · " + withRefs + " cảnh kèm ảnh chân dung nhân vật làm tham chiếu");
             ctx.log("… Cảnh " + nums + ": đang tạo (" + (i + part.size()) + "/" + ids.size() + ")");
             long a = System.currentTimeMillis();
             List<Result> res;
             try {
-                res = generate(prompts, p.aspect, appName(projectId));
+                res = generate(prompts, refs, p.aspect, appName(projectId));
             } catch (IOException e) {
                 ctx.log("  ✖ Cảnh " + nums + ": " + e.getMessage());
                 failed.addAll(nums);
@@ -242,6 +274,55 @@ public class FlowApiService {
                 + (failed.isEmpty() ? "" : "; lỗi ở cảnh " + failed));
         if (ok == 0) throw new IOException("Không tạo được cảnh nào qua service tạo ảnh");
         cleanUpIfComplete(projectId, ctx);
+    }
+
+    /**
+     * Reference portraits of characters with Flow (one picture each, from the style bible + the character's look).
+     * ids null = every character that has no picture yet; otherwise exactly these (an existing picture is replaced).
+     */
+    public Job portraits(String projectId, List<String> ids) {
+        Project p = projects.get(projectId);
+        List<String> todo = new ArrayList<>();
+        for (CharacterRef c : p.characters) {
+            if (c.name == null || c.name.isBlank()) continue;
+            if (ids != null ? ids.contains(c.id) : c.file == null) todo.add(c.id);
+        }
+        if (todo.isEmpty()) throw new IllegalArgumentException("Không có nhân vật nào cần vẽ chân dung");
+        return jobs.start("flow-api", "Chân dung nhân vật (" + todo.size() + ")", projectId, null, ctx -> {
+            String bad = health();
+            if (bad != null && (bad.startsWith("không") || bad.startsWith("service tạo ảnh"))) throw new IOException(bad);
+            Path assets = projects.folder(projectId, "assets");
+            Project pr0 = projects.get(projectId);
+            List<String> prompts = new ArrayList<>();
+            for (String cid : todo) prompts.add(AgentPrompts.portraitPrompt(pr0, pr0.character(cid)));
+            ctx.log("… Đang vẽ chân dung: " + todo.stream().map(cid -> pr0.character(cid).name).toList());
+            List<Result> res = generate(prompts, null, "3:4", appName(projectId));
+            int ok = 0;
+            for (int k = 0; k < todo.size(); k++) {
+                Result r = res.get(k);
+                String cid = todo.get(k);
+                String name = pr0.character(cid).name;
+                if (r.error() != null && r.error().contains("FLOW_REFUSED")) throw new IOException(FLOW_REFUSED_MSG);
+                if (r.error() != null || r.image() == null || r.image().length < 1000) {
+                    ctx.log("  ✖ " + name + ": " + (r.error() != null ? r.error() : "ảnh trống"));
+                    continue;
+                }
+                String file = "ref-" + cid + "-" + System.currentTimeMillis() + ext(r.image());
+                Files.write(assets.resolve(file), GeminiWatermark.clean(r.image()));
+                String[] old = new String[1];
+                projects.mutate(projectId, pr -> {
+                    CharacterRef c = pr.character(cid);
+                    old[0] = c.file;
+                    c.file = file;
+                    c.canvaMediaId = null;
+                });
+                if (old[0] != null && !old[0].equals(file)) Files.deleteIfExists(assets.resolve(old[0]));
+                ok++;
+                ctx.log("  ✔ " + name);
+            }
+            if (ok == 0) throw new IOException("Không vẽ được chân dung nào");
+            ctx.log("✔ Xong " + ok + "/" + todo.size() + " chân dung. Các cảnh có nhân vật này sẽ dùng ảnh làm tham chiếu.");
+        });
     }
 
     /** The service's project key for a Media Studio project. */

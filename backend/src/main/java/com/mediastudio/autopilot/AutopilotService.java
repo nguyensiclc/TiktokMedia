@@ -61,11 +61,20 @@ public class AutopilotService {
         if (!hasScript) {
             String topic = p.topic == null || p.topic.isBlank() ? p.name : p.topic;
             int n = p.queueScenes != null ? p.queueScenes : "history".equals(p.niche) ? 34 : "facts".equals(p.niche) ? 7 : 12;
-            step(id, ctx, "Kịch bản", () -> agent.storyboard(id, topic, n, "Vietnamese", "", false, p.niche));
+            step(id, ctx, "Kịch bản", () -> agent.storyboard(id, topic, n, "Vietnamese", p.queueChibi ? Project.CHIBI_STYLE : "", false, p.niche));
         } else {
             ctx.log("  ✔ Kịch bản: đã có");
         }
         int total = projects.get(id).scenes.size();
+        if (!"extension".equals(settings.get().flowEngine)
+                && projects.get(id).characters.stream().anyMatch(c -> c.name != null && !c.name.isBlank() && c.file == null)) {
+            try {
+                step(id, ctx, "Chân dung nhân vật", () -> flowApi.portraits(id, null));
+            } catch (IOException e) {
+                if (ctx.cancelled() || refused(e)) throw e;
+                ctx.log("    ⚠ " + e.getMessage() + " — vẫn tạo hình các cảnh");
+            }
+        }
 
         // Pictures: a second pass for the scenes the first one missed.
         for (int pass = 1; pass <= 2 && missing(id) > 0; pass++) {

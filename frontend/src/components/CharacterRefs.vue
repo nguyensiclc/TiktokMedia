@@ -4,7 +4,7 @@ import { api, fileUrl } from '../api'
 import { ask } from '../confirm'
 
 const props = defineProps({ project: Object })
-const emit = defineEmits(['updated', 'error'])
+const emit = defineEmits(['updated', 'error', 'portraits'])
 
 // Images pasted/dropped/picked but not saved yet: [{ key, file, preview, name, description, saving }]
 const pending = ref([])
@@ -170,6 +170,8 @@ onBeforeUnmount(() => {
     <div class="row">
       <h3 class="grow" style="margin:0">0 · Nhân vật tham chiếu ({{ project.characters.length }})</h3>
       <span class="muted small">trỏ chuột vào một ô nhân vật rồi Ctrl+V để dán ảnh vào ô đó · dán ở chỗ trống để thêm nhân vật mới</span>
+      <button v-if="project.characters.some((c) => !c.file)" class="small primary" title="Vẽ ảnh chân dung bằng Flow cho các nhân vật chưa có ảnh"
+              @click="emit('portraits', null)"><Icon name="sparkles" /> Tạo chân dung</button>
       <button class="small" @click="pick">+ Thêm ảnh</button>
     </div>
     <p class="muted small">
@@ -210,6 +212,7 @@ onBeforeUnmount(() => {
           </div>
           <span v-if="imgBusy[c.id]" class="pic-tag">Đang lưu…</span>
           <span v-else-if="c.file" class="pic-tag hint">Ctrl+V hoặc bấm để đổi ảnh</span>
+          <span v-if="c.auto" class="auto-tag" title="Nhân vật chính do Claude tìm ra khi viết kịch bản">AI</span>
         </div>
         <label>Tên nhân vật</label>
         <input v-model="c.name" @change="update(c)" />
@@ -220,6 +223,8 @@ onBeforeUnmount(() => {
             {{ c.canvaMediaId ? '✔ Canva' : 'chưa lên Canva' }}
           </span>
           <span class="grow" />
+          <button class="small" :title="c.file ? 'Vẽ lại chân dung bằng Flow từ mô tả' : 'Vẽ chân dung bằng Flow từ mô tả'"
+                  @click="emit('portraits', [c.id])">{{ c.file ? 'Vẽ lại' : 'Vẽ' }}</button>
           <button class="small danger" @click="remove(c)">Xoá</button>
         </div>
       </div>
@@ -241,7 +246,9 @@ onBeforeUnmount(() => {
 .char:hover .noimg { outline: 1px dashed var(--accent); }
 .noimg { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--bg); display: flex; flex-direction: column;
          align-items: center; justify-content: center; text-align: center; font-size: 13px; margin-bottom: 4px; }
-.char img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--bg); margin-bottom: 4px; }
+.auto-tag { position: absolute; top: 6px; left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 700;
+            background: var(--accent); color: #fff; }
+.char img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 6px; background: var(--bg); margin-bottom: 4px; }
 .char label { margin: 2px 0 0; }
 .char textarea { min-height: 70px; font-size: 12px; }
 .char .row { margin-top: 4px; }

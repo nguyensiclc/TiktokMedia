@@ -169,14 +169,24 @@ public class AgentService {
     private void runStoryboard(String projectId, String topic, String topicToStore, int count, String language,
                                String style, boolean append, String ai, String model, JobContext ctx) throws Exception {
         {
-            Project p = projects.get(projectId);
             Path dir = projects.dir(projectId);
+            if (!append) {
+                // A new script brings its own main figures: drop the ones the last script made (and their portraits).
+                for (CharacterRef c : projects.get(projectId).characters) {
+                    if (c.auto && c.file != null) Files.deleteIfExists(dir.resolve("assets").resolve(c.file));
+                }
+                projects.mutate(projectId, pr -> pr.characters.removeIf(c -> c.auto));
+            }
+            Project p = projects.get(projectId);
             Path out = dir.resolve("storyboard.json");
             Files.deleteIfExists(out);
+            boolean history = "history".equals(p.niche);
+            List<String> tools = history ? List.of("Write", "Read", "WebSearch", "WebFetch") : List.of("Write", "Read");
+            if (history) ctx.log("  Claude tra cứu sự kiện, trang phục, hình tượng nhân vật trên mạng trước khi viết");
 
             if (!p.characters.isEmpty()) ctx.log("  dùng " + p.characters.size() + " nhân vật tham chiếu");
             claude.runWriting(AgentPrompts.storyboard(topic, count, language, style, p.aspect, p.characters, append, p.niche),
-                    AgentPrompts.system(p), dir, List.of("Write", "Read"),
+                    AgentPrompts.system(p), dir, tools,
                     p.characters.stream().anyMatch(c -> c.file != null && !c.file.isBlank()), ai, model, ctx);
 
             if (!Files.exists(out)) throw new IOException("AI không tạo storyboard.json");
@@ -205,7 +215,19 @@ public class AgentService {
                 }
                 pr.scenes.removeIf(s -> isEmpty(s));
                 pr.scenes.addAll(scenes);
+                for (JsonNode c : root.path("characters")) {
+                    String name = c.path("name").asText("").trim();
+                    String look = c.path("look").asText("").trim();
+                    if (name.isEmpty() || pr.characters.stream().anyMatch(x -> x.name != null && x.name.trim().equalsIgnoreCase(name))) continue;
+                    CharacterRef r = new CharacterRef();
+                    r.name = name;
+                    r.description = look;
+                    r.auto = true;
+                    pr.characters.add(r);
+                }
             });
+            long made = projects.get(projectId).characters.stream().filter(c -> c.auto && c.file == null).count();
+            if (made > 0) ctx.log("  + " + made + " nhân vật chính (bấm \"Tạo chân dung\" ở mục Nhân vật để vẽ ảnh tham chiếu)");
             ctx.log("✔ Đã tạo " + scenes.size() + " cảnh" + (bible.isEmpty() ? "" : " + bộ quy tắc hình ảnh"));
         }
     }

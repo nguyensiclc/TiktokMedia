@@ -70,6 +70,7 @@ export const api = {
     return api.upload(`/api/projects/${id}/characters/${cid}/image`, f)
   },
   deleteCharacter: (id, cid) => api.del(`/api/projects/${id}/characters/${cid}`),
+  portraits: (id, ids = null) => api.post(`/api/projects/${id}/characters/portraits`, ids ? { ids } : {}),
 
   openFolder: (id, folder = 'output') => api.post(`/api/projects/${id}/open-folder`, { folder }),
   setMusic: (id, file) => {

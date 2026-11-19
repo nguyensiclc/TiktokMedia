@@ -9,6 +9,7 @@ const niche = ref('history')
 const scenes = ref(34)
 const privacy = ref('SELF_ONLY')
 const aiLabel = ref(true)
+const chibi = ref(false)
 const schedule = ref(true)
 const startAt = ref(defaultStart())
 const interval = ref(24)
@@ -56,7 +57,7 @@ async function add() {
   busy.value = true
   try {
     const created = await api.post('/api/queue', {
-      topics: topics.value, niche: niche.value, scenes: scenes.value, privacy: privacy.value, aiLabel: aiLabel.value,
+      topics: topics.value, niche: niche.value, scenes: scenes.value, privacy: privacy.value, aiLabel: aiLabel.value, chibi: chibi.value,
       startAt: schedule.value && startAt.value ? new Date(startAt.value).toISOString() : '',
       intervalHours: interval.value,
     })
@@ -85,6 +86,7 @@ async function add() {
         </label>
       </div>
       <label class="inl">Số cảnh <input v-model.number="scenes" type="number" min="1" :max="34" style="width:70px" /></label>
+      <label class="inl" title="Nhân vật đầu to, mắt to, thân nhỏ dễ thương (2–3 đầu)"><input v-model="chibi" type="checkbox" /> Nhân vật chibi dễ thương</label>
     </div>
     <div class="opts">
       <label class="row chk"><input v-model="schedule" type="checkbox" /> Hẹn giờ đăng</label>

@@ -178,6 +178,21 @@ final class AgentPrompts {
                 """ + sourceText;
     }
 
+    /**
+     * Reference portrait of one character for the image generator: the project's style + the character's fixed look,
+     * full figure on a plain background so later scenes can copy face, costume and colours from it.
+     */
+    static String portraitPrompt(Project p, CharacterRef c) {
+        String bible = p.styleBible == null ? "" : p.styleBible.trim();
+        String look = c.description == null || c.description.isBlank() ? "(see STYLE AND CHARACTERS)" : c.description.trim();
+        return (bible.isEmpty() ? "" : "STYLE AND CHARACTERS (keep exactly):\n" + bible + "\n\n")
+                + "CHARACTER REFERENCE SHEET of " + c.name.trim() + ": " + look + "\n"
+                + "Only this one person, full body from head to feet, standing upright facing the viewer in a "
+                + "confident pose, the whole costume, armour, headwear and weapon clearly visible, face clear and "
+                + "detailed, centred, plain soft light neutral background with no scenery and no other people. "
+                + "Same art style as described above.\n" + QUALITY;
+    }
+
     /** Max reference images sent per scene (characters), besides the style anchor. */
     static final int MAX_CHARACTER_REFS = 3;
 
@@ -271,12 +286,32 @@ final class AgentPrompts {
         return storyboard(topic, scenes, language, style, aspect, chars, append, "story");
     }
 
+    /** Art style used when the user ticks "chibi". */
+    public static final String CHIBI_STYLE = com.mediastudio.project.Project.CHIBI_STYLE;
+
+    /** Appended to the script prompt when the visual style asks for chibi characters; it overrides other style hints. */
+    static final String CHIBI_RULES = """
+
+            CHIBI CHARACTERS (overrides any other art-style example above):
+              - Every character is a cute chibi: super-deformed, about 2-3 heads tall, big round head, large expressive
+                eyes, tiny rounded body and hands. Write this proportion into styleBible's STYLE and into each character's
+                fixed look, so every picture keeps it.
+              - Keep each character's identifying details (hair, clothes, colours, accessories, armour, weapons) exactly as
+                for a normal look, only in chibi proportions. Settings and props stay detailed and true to the story's
+                time and place (for Vietnamese history: still clearly feudal Vietnam), drawn in the same cute style.
+              - Emotions are big and readable on the faces. Heroes look bright, kind and lovable, and the main heroes still
+                look majestic: proud upright pose, determined eyes, cape or banner flowing. Villains or invaders are
+                still chibi but grumpy, scowling and sly (frowning brows, smirks), never frightening or gory.
+              - Battles and danger are shown in a playful, non-graphic way: no blood, no wounds, no corpses.
+            """;
+
     /** @param niche "story" (tale with characters and a moral), "facts" ("Bạn có biết?") or "history" (wars). */
     static String storyboard(String topic, int scenes, String language, String style, String aspect,
                              List<CharacterRef> chars, boolean append, String niche) {
         String full = "facts".equals(niche) ? storyboardFacts(topic, scenes, language, style, aspect)
                 : "history".equals(niche) ? storyboardHistory(topic, scenes, language, style, aspect, chars)
                 : storyboardFull(topic, scenes, language, style, aspect, chars);
+        if (style != null && style.toLowerCase().contains("chibi")) full = full + CHIBI_RULES;
         if (!append) return full;
         int a = full.indexOf("FIXED STRUCTURE");
         int b = full.indexOf("Write ./storyboard.json");
@@ -438,15 +473,33 @@ final class AgentPrompts {
                     34. One moving closing line and a call to follow for the next episode of the history series.
                        Its picture is a calm, majestic wide shot (a monument, a river, a sunrise over the battlefield).
 
+                RESEARCH FIRST (2 to 6 WebSearch / WebFetch calls in total; both searches below are required):
+                  - Check the key facts of this war on the web (dates, places, commanders, numbers, tactics) and fix
+                    anything you are not sure of. Prefer Vietnamese encyclopedias and reputable history sources.
+                  - REQUIRED second search (in Vietnamese, e.g. "tượng <name> đền thờ"): look up how each main figure is traditionally depicted in Vietnam (temple statues, worship portraits,
+                    famous monuments: pose, beard, headwear, robe or armour colours, weapon, mount, emblem), and the real
+                    clothing, armour, weapons, ships and buildings of that century for both sides.
+                  - Use what you learn only as WORDS in styleBible and the prompts. Do not download or copy images, and
+                    do not describe one specific modern artwork or film still: create your own look from the facts.
+
                 Write ./storyboard.json (overwrite it) as one JSON object:
                 {
                   "styleBible": "...",
+                  "characters": [{"name": "...", "look": "..."}],
                   "scenes": [{"narration": "...", "imagePrompt": "..."}]
                 }
 
+                characters: the 1-4 most important recurring figures (main heroes first, then the main enemy commander if
+                he appears often). name = exactly as written in styleBible and the "Characters:" lines (correct
+                diacritics). look (English, 40-90 words) = that figure's complete fixed look, copied from styleBible: age,
+                face, hair / beard, body, armour or robe with colours, headwear, weapon, one distinctive item, and for
+                heroes their majestic bearing. The app draws a reference portrait of each one from this text.
+
                 styleBible (English, 80-200 words) is prepended to every image prompt, so it must be self-contained:
-                  - STYLE: one art style for the whole video, colour palette, lighting, mood (e.g. "epic cinematic
-                    historical painting, muted earthy tones with fiery accents, dramatic volumetric light").
+                  - STYLE: one art style for the whole video (medium, rendering, line work, level of detail), e.g. "epic
+                    cinematic historical painting, rich detail, volumetric light". Do NOT fix one colour mood here: the
+                    palette and lighting change with each scene's mood (see MOOD BY SCENE); say so in styleBible
+                    ("palette and lighting follow each scene's mood").
                   - ERA: the period's real clothing, armour, weapons, ships, architecture of each side (historically accurate
                     for that century and people; no anachronisms, no modern objects).
                   - CHARACTERS: each historical figure who appears in several scenes, with a fixed name (as written in the
@@ -474,6 +527,22 @@ final class AgentPrompts {
                   - In a civil war between Vietnamese factions, both sides are Vietnamese and both look serious and
                     dignified, unless the topic / brief says otherwise.
 
+                HEROES (the main Vietnamese figures of the story: kings, generals, heroines):
+                  - Always majestic and awe-inspiring (oai phong, lẫm liệt): upright commanding stance, broad confident
+                    shoulders, steady fearless gaze, chin raised, cape / robe / banner flowing in the wind, polished armour
+                    or ceremonial robe, often framed from a slightly low angle against the sky. Write this into each hero's
+                    fixed look in styleBible. Even in hard moments they look determined, never weak or frightened.
+
+                MOOD BY SCENE (palette and lighting follow what happens; write it in every imagePrompt's "Mood:"):
+                  - PEACE (villages, fields, daily life, festivals, court in calm times, victory and the closing): bright,
+                    fresh, cheerful tones: warm sunlight, clear blue sky, lush green paddies, soft golden light, vivid
+                    colours.
+                  - THREAT / PLANNING (enemy massing, councils of war, night before battle): tense and serious: dusk or
+                    torchlight, deeper shadows, cooler colours, the enemy side in cold harsh light.
+                  - BATTLE: heroic and epic (hùng tráng): dramatic sky, fiery orange and red accents against deep tones,
+                    smoke and dust lit by sunbeams, strong contrast, dynamic diagonal composition, flags and spears in
+                    motion, sense of momentum and courage. Epic, never gory.
+
                 For each scene:
                   - narration: 1-3 clear sentences in the narration language (about 5-10 seconds read aloud), written to be
                     spoken: simple words, no lists, no parentheses.
@@ -481,12 +550,13 @@ final class AgentPrompts {
                     Link scenes so the story flows (cause → effect, "Nhưng…", "Ngay sau đó…").
                   - imagePrompt (English): "Characters: <historical figures from styleBible who appear, or none>. Setting:
                     <real place, Vietnamese era details, weather, time of day>. Action: <what happens, expressions: our side bright-eyed and
-                    kind, invaders scowling and menacing>. Framing: <shot
+                    kind, heroes majestic and fearless, invaders scowling and menacing>. Mood: <peace: bright fresh tones |
+                    threat: tense dusk / torchlight | battle: heroic epic, fiery dramatic light>. Framing: <shot
                     type, angle>." Add "<name> is NOT in this scene." when a recurring figure is absent. Vary framing (epic
                     wide battle, medium shot of a council, close-up of a commander's face). Show the event the narration
                     describes; no gore. Never ask for text, labelled maps, charts or numbers in the picture.
-                Use only your own knowledge: do not search the web, do not run shell commands or scripts. Create the file
-                directly with your file-writing tool. Write only that file, nothing else.
+                Do not run shell commands or scripts. Create the file directly with your file-writing tool. Write only
+                that file, nothing else.
                 """).formatted(topic, n, language,
                 blankTo(style, chars == null || chars.isEmpty()
                         ? "epic cinematic historical painting of feudal Vietnam, dramatic lighting, rich detail"

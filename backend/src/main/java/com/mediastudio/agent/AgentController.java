@@ -4,6 +4,7 @@ import com.mediastudio.job.Job;
 import com.mediastudio.render.RenderService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -12,11 +13,13 @@ public class AgentController {
     private final AgentService agent;
     private final RenderService render;
     private final GeminiImageService gemini;
+    private final FlowApiService flowApi;
 
-    public AgentController(AgentService agent, RenderService render, GeminiImageService gemini) {
+    public AgentController(AgentService agent, RenderService render, GeminiImageService gemini, FlowApiService flowApi) {
         this.agent = agent;
         this.render = render;
         this.gemini = gemini;
+        this.flowApi = flowApi;
     }
 
     /** Gemini API image for one scene. */
@@ -40,9 +43,25 @@ public class AgentController {
         int scenes = Integer.parseInt(String.valueOf(body.getOrDefault("scenes", 6)));
         return agent.storyboard(id, topic, Math.max(1, Math.min(scenes, AgentPrompts.MAX_SCENES)),
                 String.valueOf(body.getOrDefault("language", "Vietnamese")),
-                String.valueOf(body.getOrDefault("style", "")),
+                chibiStyle(String.valueOf(body.getOrDefault("style", "")),
+                        Boolean.parseBoolean(String.valueOf(body.getOrDefault("chibi", false)))),
                 Boolean.parseBoolean(String.valueOf(body.getOrDefault("append", false))),
                 body.get("niche") == null ? null : String.valueOf(body.get("niche")));
+    }
+
+    /** {ids?: [characterId…]} — reference portraits with Flow; no ids = every character without a picture. */
+    @PostMapping("/characters/portraits")
+    public Job portraits(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
+        List<String> ids = null;
+        if (body != null && body.get("ids") instanceof List<?> l && !l.isEmpty()) ids = l.stream().map(String::valueOf).toList();
+        return flowApi.portraits(id, ids);
+    }
+
+    /** chibi = true puts the cute chibi style first; any style the user typed is kept as extra detail. */
+    static String chibiStyle(String style, boolean chibi) {
+        String s = style == null ? "" : style.trim();
+        if (!chibi || s.toLowerCase().contains("chibi")) return s;
+        return s.isEmpty() ? AgentPrompts.CHIBI_STYLE : AgentPrompts.CHIBI_STYLE + ", " + s;
     }
 
     /** {note?, storyboard?: true} — read the source images, add characters, then (by default) write the script. */

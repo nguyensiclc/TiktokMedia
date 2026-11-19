@@ -26,7 +26,7 @@ public class AutopilotController {
     }
 
     /**
-     * {topics: "one per line", niche, scenes?, privacy?, aiLabel?, startAt?: ISO instant, intervalHours?: 24}
+     * {topics: "one per line", niche, scenes?, chibi?, privacy?, aiLabel?, startAt?: ISO instant, intervalHours?: 24}
      * — one new 9:16 project per topic, posted at startAt, startAt + interval, … (no startAt = only prepared).
      */
     @PostMapping
@@ -41,6 +41,7 @@ public class AutopilotController {
         String privacy = String.valueOf(body.getOrDefault("privacy", "SELF_ONLY"));
         if (!StudioPoster.PRIVACY_KEYS.contains(privacy)) throw new IllegalArgumentException("Quyền xem không hợp lệ");
         boolean ai = !Boolean.FALSE.equals(body.get("aiLabel"));
+        boolean chibi = Boolean.parseBoolean(String.valueOf(body.getOrDefault("chibi", false)));
         Instant start = blank(body.get("startAt")) ? null : Instant.parse(String.valueOf(body.get("startAt")));
         double hours = body.get("intervalHours") == null ? 24 : Double.parseDouble(String.valueOf(body.get("intervalHours")));
         Duration step = Duration.ofMinutes(Math.max(10, Math.round(hours * 60)));
@@ -57,6 +58,7 @@ public class AutopilotController {
                 pr.niche = n;
                 pr.slideRatio = "3:4";
                 pr.queueScenes = sc;
+                pr.queueChibi = chibi;
                 pr.queuePrivacy = privacy;
                 pr.queueAiLabel = ai;
                 pr.scheduledAt = at;
