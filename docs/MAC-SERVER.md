@@ -79,6 +79,21 @@ Cách hoạt động: mỗi tin nhắn chạy `claude -p --resume <phiên>` trê
 Cuộc trò chuyện được lưu ở `~/MediaStudio/assistant/chat.json`, nên mọi thiết bị đều thấy cùng một cuộc trò chuyện. Nút ↺ bắt đầu cuộc trò chuyện mới, bản cũ được giữ lại thành `chat-<thời gian>.json`.
 Model của trợ lý mặc định là `sonnet`. Đổi trong **Cài đặt → Công cụ & thư mục → Model của Trợ lý chat**.
 
+### Điều khiển qua Telegram
+
+Bạn nhắn cho bot Telegram giống như nhắn trong cửa sổ chat. Bot báo tiến độ (⚙ Viết kịch bản…) và gửi video / bộ ảnh về Telegram khi xong.
+Bot dùng long polling nên Mac không cần IP công khai hay mở cổng router.
+
+1. Trên Telegram, mở **@BotFather**, gửi `/newbot`, đặt tên rồi chép **token**.
+2. Dán token vào **Cài đặt → Điều khiển qua Telegram → Token của bot**, bấm **Lưu & kết nối**.
+   Cách khác: điền `TELEGRAM_BOT_TOKEN=` trong `~/.mediastudio/server.env` rồi khởi động lại dịch vụ.
+3. Nhắn bất kỳ cho bot. Bot trả lời **ID Telegram của bạn**. Dán ID này vào ô "ID Telegram được phép dùng" (hoặc `TELEGRAM_ALLOWED_IDS=`), rồi lưu.
+4. Nhắn lại cho bot. Từ đây, chỉ những ID trong danh sách mới dùng được bot.
+
+Lệnh: `/new` bắt đầu cuộc trò chuyện mới · `/stop` dừng việc đang làm · `/help`.
+Telegram và cửa sổ chat dùng **chung một cuộc trò chuyện**. Telegram không có "dự án đang mở", nên trợ lý hiểu "dự án này" là dự án vừa làm gần nhất.
+Bot Telegram chỉ gửi được file tối đa 50 MB, video dài hơn thì tải qua web.
+
 ## 6. Đăng nhập Google Flow / TikTok Studio (cần màn hình Mac một lần)
 
 Hai dịch vụ này chạy bằng Chrome trên Mac, với profile riêng ở `~/MediaStudio/browser-profile`. Lần đầu, bạn cần thấy màn hình Mac để đăng nhập:

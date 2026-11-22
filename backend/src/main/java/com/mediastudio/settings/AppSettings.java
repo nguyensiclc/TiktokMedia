@@ -28,6 +28,10 @@ public class AppSettings {
     public String claudeModelWriting = "opus";
     /** Model of the chat assistant that drives the app (empty = claudeModel). */
     public String claudeModelAssistant = "sonnet";
+    /** Telegram bot (from @BotFather) that talks to the assistant; empty = off. Env TELEGRAM_BOT_TOKEN wins. */
+    public String telegramBotToken = "";
+    /** Telegram user ids allowed to use the bot, comma separated. Env TELEGRAM_ALLOWED_IDS is added. */
+    public String telegramAllowedIds = "";
     /** Node.js executable that runs the assistant's app tool (MCP server). */
     public String nodePath = "node";
     /** Which CLI does the writing jobs (TikTok caption, image analysis, storyboard): "claude" or "agy". */

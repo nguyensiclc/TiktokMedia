@@ -66,6 +66,8 @@ public class AssistantService {
         public List<String> tools = new ArrayList<>();
         public String projectId;
         public boolean error;
+        /** web or telegram */
+        public String via;
         public Instant at = Instant.now();
     }
 
@@ -76,6 +78,8 @@ public class AssistantService {
         /** Job of the reply being written; null when idle. */
         public String jobId;
         public Double costUsd = 0.0;
+        /** Project the conversation last worked on (Telegram has no "open project", so this stands in). */
+        public String lastProjectId;
     }
 
     private Path dir() throws IOException {
@@ -125,7 +129,35 @@ public class AssistantService {
         return chat;
     }
 
-    public synchronized Job send(String text, String projectId, boolean restricted) {
+    /** Gets the reply as it is written (Telegram uses this; the web window reads the job stream instead). */
+    public interface Listener {
+        default void text(String t) { }
+
+        default void tool(String label) { }
+
+        default void done(Msg reply) { }
+    }
+
+    /** Listener of the reply being written (one reply at a time); null = none. */
+    private volatile Listener listener;
+
+    private void emit(JobContext ctx, String k, String v) {
+        ctx.log(line(k, v));
+        Listener l = listener;
+        if (l == null) return;
+        try {
+            if ("text".equals(k)) l.text(v);
+            else l.tool(v);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public Job send(String text, String projectId, boolean restricted) {
+        return send(text, projectId, restricted, "web", null);
+    }
+
+    /** @param via "web" or "telegram" (shown in the chat, and Telegram replies are kept short) */
+    public synchronized Job send(String text, String projectId, boolean restricted, String via, Listener l) {
         Chat c = chat();
         if (c.jobId != null) {
             try {
@@ -139,18 +171,40 @@ public class AssistantService {
         user.role = "user";
         user.text = text;
         user.projectId = blank(projectId) ? null : projectId;
+        user.via = via;
         c.messages.add(user);
         Msg reply = new Msg();
         reply.role = "assistant";
         reply.projectId = user.projectId;
+        reply.via = via;
         c.messages.add(reply);
+        if (user.projectId != null) c.lastProjectId = user.projectId;
 
-        String prompt = context(user.projectId) + text;
+        String prompt;
+        if ("telegram".equals(via)) {
+            prompt = "[Nhắn qua Telegram: trả lời ngắn gọn, văn bản thường, không bảng. Muốn cho người dùng xem hình / video / "
+                    + "bộ ảnh thì gửi bằng công cụ send_file.]\n"
+                    + (c.lastProjectId != null ? context(c.lastProjectId).replace("[Đang mở dự án", "[Dự án đang làm gần nhất") : "")
+                    + text;
+        } else {
+            prompt = context(user.projectId) + text;
+        }
+        listener = l;
         Job job = jobs.start("assistant", "Trợ lý: " + abbrev(text, 60), null, null,
                 ctx -> run(prompt, reply, restricted, ctx));
         c.jobId = job.id;
         save();
         return job;
+    }
+
+    public boolean busy() {
+        Chat c = chat();
+        if (c.jobId == null) return false;
+        try {
+            return jobs.get(c.jobId).status == Job.Status.RUNNING;
+        } catch (java.util.NoSuchElementException e) {
+            return false;
+        }
     }
 
     public void cancel() {
@@ -176,14 +230,14 @@ public class AssistantService {
             boolean ok = runOnce(prompt, sid, reply, restricted, ctx);
             if (!ok && sid != null && reply.text.isBlank()) {
                 // The saved session is gone (other machine, cleared ~/.claude): start a fresh one.
-                ctx.log(line("tool", "Bắt đầu phiên mới"));
+                emit(ctx, "tool", "Bắt đầu phiên mới");
                 chat().sessionId = null;
                 ok = runOnce(prompt, null, reply, restricted, ctx);
             }
             if (!ok && reply.text.isBlank()) {
                 reply.error = true;
                 reply.text = "Không chạy được Claude CLI. Kiểm tra Claude đã đăng nhập trên máy chủ (claude setup-token).";
-                ctx.log(line("text", reply.text));
+                emit(ctx, "text", reply.text);
             }
         } catch (Exception e) {
             if (!ctx.cancelled()) {
@@ -196,6 +250,14 @@ public class AssistantService {
             synchronized (this) {
                 chat().jobId = null;
                 save();
+            }
+            Listener l = listener;
+            listener = null;
+            if (l != null) {
+                try {
+                    l.done(reply);
+                } catch (Exception ignored) {
+                }
             }
         }
     }
@@ -269,7 +331,7 @@ public class AssistantService {
                                 reply.text = reply.text.isBlank() ? t : reply.text + "\n\n" + t;
                                 save();
                             }
-                            ctx.log(line("text", t));
+                            emit(ctx, "text", t);
                         } else if ("tool_use".equals(ct)) {
                             if ("ToolSearch".equals(c.path("name").asText())) continue; // CLI-internal, not an action
                             String label = label(c.path("name").asText(), c.path("input"));
@@ -277,9 +339,14 @@ public class AssistantService {
                                 reply.tools.add(label);
                                 save();
                             }
-                            ctx.log(line("tool", label));
+                            emit(ctx, "tool", label);
                             String changed = changedProject(c.path("name").asText(), c.path("input"));
                             if (changed != null) {
+                                if (!"*".equals(changed)) {
+                                    synchronized (this) {
+                                        chat().lastProjectId = changed;
+                                    }
+                                }
                                 Map<String, String> m = new LinkedHashMap<>();
                                 m.put("k", "changed");
                                 m.put("projectId", changed);
@@ -301,7 +368,7 @@ public class AssistantService {
                             reply.error = true;
                             reply.text = reply.text.isBlank() ? res : reply.text + "\n\n⚠ " + res;
                         }
-                        ctx.log(line("text", "⚠ " + res));
+                        emit(ctx, "text", "⚠ " + res);
                     }
                 }
             }
@@ -371,6 +438,7 @@ public class AssistantService {
     static String label(String tool, JsonNode in) {
         if (tool.endsWith("__wait_job")) return "Chờ tác vụ chạy xong";
         if (tool.endsWith("__view_image")) return "Xem hình " + in.path("name").asText("");
+        if (tool.endsWith("__send_file")) return "Gửi file qua Telegram";
         if (tool.equals("WebSearch")) return "Tìm trên web: " + abbrev(in.path("query").asText(""), 60);
         if (tool.endsWith("__api")) {
             String m = in.path("method").asText("GET").toUpperCase();

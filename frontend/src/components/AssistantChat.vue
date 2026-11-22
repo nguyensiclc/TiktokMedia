@@ -136,8 +136,19 @@ function md(s) {
     .replace(/\n/g, '<br>')
 }
 
-onMounted(load)
-onBeforeUnmount(() => es?.close())
+// Messages can also arrive from Telegram: look for them while the window is open (cheap GET, skipped while streaming).
+let poll = null
+const refresh = () => { if (!es && !busy.value) load() }
+onMounted(() => {
+  load()
+  window.addEventListener('focus', refresh)
+  poll = setInterval(() => { if (open.value && !document.hidden) refresh() }, 10000)
+})
+onBeforeUnmount(() => {
+  es?.close()
+  clearInterval(poll)
+  window.removeEventListener('focus', refresh)
+})
 </script>
 
 <template>
@@ -168,6 +179,7 @@ onBeforeUnmount(() => es?.close())
           <span v-for="(t, j) in m.tools" :key="j" class="tool"><Icon name="check" :size="12" /> {{ t }}</span>
         </div>
         <div v-if="m.text" class="bubble" v-html="md(m.text)" />
+        <span v-if="m.role === 'user' && m.via === 'telegram'" class="via muted">qua Telegram</span>
         <div v-else-if="m.role === 'assistant' && busy && i === messages.length - 1" class="bubble typing">
           <Icon name="loader" :size="14" /> Đang suy nghĩ…
         </div>
@@ -219,6 +231,7 @@ header { display: flex; align-items: center; gap: var(--s2); padding: 10px 12px;
 .error { color: var(--err); margin: 0; padding: 0 var(--s3); }
 footer { display: flex; gap: var(--s2); align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--border); }
 footer textarea { flex: 1; resize: none; min-height: 40px; max-height: 140px; font: inherit; }
+.via { font-size: 10px; }
 .cost { font-size: 11px; text-align: center; padding: 0 0 6px; }
 
 @media (max-width: 820px) {

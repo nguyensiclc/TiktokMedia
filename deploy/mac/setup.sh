@@ -87,6 +87,10 @@ MEDIASTUDIO_LAN_PIN=$PIN
 MEDIASTUDIO_REMOTE_ADMIN=true
 # Cổng web của app.
 PORT=8787
+# Bot Telegram (tạo ở @BotFather) và ID Telegram được phép dùng (cách nhau dấu phẩy). Để trống = tắt
+# (cũng đặt được trong Cài đặt của app).
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ALLOWED_IDS=
 ENV
   chmod 600 "$ENVF"
 fi

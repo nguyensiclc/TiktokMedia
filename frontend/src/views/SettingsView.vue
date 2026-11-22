@@ -125,6 +125,17 @@ async function newPin() {
 }
 onMounted(loadLan)
 
+// --- Telegram bot (talks to the chat assistant) ---
+const tg = ref(null)
+async function loadTg() {
+  try { tg.value = await api.get('/api/telegram/status') } catch { tg.value = null }
+}
+async function saveTg() {
+  await save()
+  setTimeout(loadTg, 2500) // the bot picks up a new token within a few seconds
+}
+onMounted(loadTg)
+
 async function save() {
   error.value = ''
   try {
@@ -451,6 +462,28 @@ onMounted(() => {
         <div class="field"><label>Model Claude cho phân tích hình{{ s.aiWriting === 'agy' ? '' : ' & viết (trống = model chung)' }}</label><input v-model="s.claudeModelWriting" placeholder="opus" /></div>
         <div class="field"><label>FFmpeg</label><input v-model="s.ffmpegPath" /></div>
         <div class="field"><label>FFprobe</label><input v-model="s.ffprobePath" /></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3><Icon name="send" />Điều khiển qua Telegram</h3>
+      <p class="muted small" style="margin-top:0">
+        Nhắn cho bot Telegram như nhắn với Trợ lý chat: bot làm video, báo tiến độ và gửi video / bộ ảnh về Telegram.
+        Tạo bot: mở <a href="https://t.me/BotFather" target="_blank">@BotFather</a> → <code>/newbot</code> → dán token vào đây.
+        Rồi nhắn cho bot: bot trả lời ID của bạn, dán ID vào ô dưới (nhiều người: cách nhau dấu phẩy).
+      </p>
+      <div class="grid2">
+        <div class="field"><label>Token của bot</label>
+          <input v-model="s.telegramBotToken" type="password" autocomplete="off"
+                 :placeholder="tg?.fromEnv ? 'Đang dùng TELEGRAM_BOT_TOKEN của máy chủ' : (tg?.enabled ? '(đã lưu — để trống nếu không đổi)' : '123456:ABC…')" /></div>
+        <div class="field"><label>ID Telegram được phép dùng</label><input v-model="s.telegramAllowedIds" placeholder="vd: 123456789" /></div>
+      </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button @click="saveTg">Lưu & kết nối</button>
+        <span v-if="tg?.running" class="ok">● Đang chạy: <a :href="`https://t.me/${tg.bot}`" target="_blank">@{{ tg.bot }}</a></span>
+        <span v-else-if="tg?.enabled" class="err">● Chưa kết nối{{ tg.error ? ': ' + tg.error : '' }}</span>
+        <span v-else class="muted">Đang tắt</span>
+        <span v-if="tg?.enabled && !tg.allowed" class="warn small">Chưa có ID nào được phép: bot sẽ từ chối mọi người.</span>
       </div>
     </div>
 

@@ -27,6 +27,7 @@ public class SettingsController {
         copy.tiktokClientSecret = "";
         copy.lanPin = "";
         copy.geminiApiKey = "";
+        copy.telegramBotToken = "";
         return copy;
     }
 
@@ -38,6 +39,7 @@ public class SettingsController {
             if (blank(body.tiktokClientSecret)) body.tiktokClientSecret = cur.tiktokClientSecret;
             if (blank(body.geminiApiKey)) body.geminiApiKey = cur.geminiApiKey;
             if (blank(body.lanPin)) body.lanPin = cur.lanPin;
+            if (blank(body.telegramBotToken)) body.telegramBotToken = cur.telegramBotToken;
         }
         if (body.lanAccess && (body.lanPin == null || body.lanPin.isBlank())) body.lanPin = newPin();
         settings.update(body);

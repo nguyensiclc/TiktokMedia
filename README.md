@@ -9,7 +9,7 @@ backend/   Spring Boot 3 / Java 21: dự án, job nền, Claude CLI, Voicebox, F
 deploy/mac Script cài & chạy trên MacBook làm máy chủ
 ```
 
-💬 **Trợ lý chat**: nút tròn ở góc phải dưới. Bạn trò chuyện bằng tiếng Việt, Claude CLI điều khiển app thay bạn (tạo dự án, viết kịch bản, tạo hình, giọng, xuất video, đăng TikTok). Trợ lý chỉ gọi REST API của app, qua `backend/src/main/resources/assistant/app-mcp.mjs`.
+💬 **Trợ lý chat**: nút tròn ở góc phải dưới. Bạn trò chuyện bằng tiếng Việt, Claude CLI điều khiển app thay bạn (tạo dự án, viết kịch bản, tạo hình, giọng, xuất video, đăng TikTok). Trợ lý chỉ gọi REST API của app, qua `backend/src/main/resources/assistant/app-mcp.mjs`. Điều khiển được cả qua **bot Telegram** (Cài đặt → Điều khiển qua Telegram).
 
 🖥 **Chạy trên MacBook làm máy chủ**: xem [docs/MAC-SERVER.md](docs/MAC-SERVER.md). Tóm tắt: `./deploy/mac/setup.sh`, rồi `claude setup-token`, rồi `./deploy/mac/install-service.sh`.
 

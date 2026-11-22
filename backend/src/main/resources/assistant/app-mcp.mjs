@@ -49,6 +49,22 @@ const TOOLS = [
       required: ['projectId', 'folder', 'name'],
     },
   },
+  {
+    name: 'send_file',
+    description: 'Gửi file của dự án (video, hình, bộ ảnh lướt, zip) cho người dùng qua Telegram. ' +
+      'Nhiều hình/video (names) được gửi thành album, mỗi album tối đa 10. Giới hạn 50 MB mỗi file.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        folder: { type: 'string', enum: ['assets', 'output'] },
+        name: { type: 'string', description: 'Một file, vd project.lastRender' },
+        names: { type: 'array', items: { type: 'string' }, description: 'Nhiều file, vd project.slideFiles' },
+        caption: { type: 'string' },
+      },
+      required: ['projectId', 'folder'],
+    },
+  },
 ]
 
 // Paths the assistant may never call: itself (would loop) and the phone PIN.
@@ -82,7 +98,7 @@ function clip(s) {
 
 // Secrets never reach the model, and a settings save only changes the fields it names (the rest, secrets included,
 // comes from the server copy), so a partial body cannot wipe anything.
-const SECRETS = ['tiktokClientSecret', 'lanPin', 'geminiApiKey']
+const SECRETS = ['tiktokClientSecret', 'lanPin', 'geminiApiKey', 'telegramBotToken']
 
 async function callApi({ method = 'GET', path, body }) {
   method = String(method).toUpperCase()
@@ -177,6 +193,13 @@ async function callTool(name, args = {}) {
       return { content: [{ type: 'text', text: clip(JSON.stringify(r, null, 1)) }], isError: !!r.error }
     }
     if (name === 'view_image') return await viewImage(args)
+    if (name === 'send_file') {
+      const r = await fetch(`${APP}/api/telegram/send`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args),
+      })
+      const t = await r.text()
+      return { content: [{ type: 'text', text: `HTTP ${r.status}\n${t}` }], isError: !r.ok }
+    }
     return { content: [{ type: 'text', text: `Không có công cụ ${name}` }], isError: true }
   } catch (e) {
     return { content: [{ type: 'text', text: `Lỗi khi gọi app: ${e.message}` }], isError: true }
