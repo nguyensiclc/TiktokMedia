@@ -130,12 +130,15 @@ onMounted(loadStatus)
   <div class="panel">
     <h3>4 · Đăng TikTok</h3>
 
+    <label>Tiêu đề bài đăng</label>
+    <input v-model="project.tiktokTitle" maxlength="90" aria-label="Tiêu đề bài đăng" @input="emit('changed')"
+           placeholder="Bấm “Claude viết tiêu đề & mô tả”, hoặc tự viết" style="margin-bottom:8px" />
     <label>Mô tả video (caption + hashtag) · {{ captionLen }}/2200</label>
     <textarea v-model="project.tiktokCaption" rows="6" maxlength="2200" @input="emit('changed')"
               placeholder="Bấm “Claude viết mô tả” để Claude viết mô tả từ kịch bản, hoặc tự viết" />
     <div class="row" style="margin-top:6px">
       <input v-model="tone" class="grow" placeholder="Giọng văn (tuỳ chọn): hài hước, cảm động, giáo dục…" />
-      <button class="small" @click="genCaption"><Icon name="sparkles" /> Claude viết mô tả</button>
+      <button class="small" @click="genCaption"><Icon name="sparkles" /> Claude viết tiêu đề & mô tả</button>
       <button class="small" :disabled="!project.tiktokCaption" title="Chép mô tả" aria-label="Chép mô tả" @click="copyCaption"><Icon name="copy" /> Chép</button>
     </div>
 
