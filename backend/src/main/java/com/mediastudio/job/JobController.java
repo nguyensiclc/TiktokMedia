@@ -24,6 +24,16 @@ public class JobController {
         return jobs.get(id);
     }
 
+    /** Last log lines of a job (the chat assistant reads these after waiting on a job). */
+    @GetMapping("/{id}/log")
+    public List<String> log(@PathVariable String id, @RequestParam(defaultValue = "40") int tail) {
+        Job j = jobs.get(id);
+        synchronized (j) {
+            int n = Math.max(1, Math.min(tail, 500));
+            return List.copyOf(j.logs.subList(Math.max(0, j.logs.size() - n), j.logs.size()));
+        }
+    }
+
     @GetMapping("/{id}/stream")
     public SseEmitter stream(@PathVariable String id) {
         return jobs.subscribe(id);

@@ -65,7 +65,12 @@ final class AgentPrompts {
             + " Each character appears exactly once and looks exactly like their description (no swapped faces, outfits or colours,"
             + " no merged characters). Physically plausible: everything stands or rests on a surface (nothing floating unless the story"
             + " says so), consistent scale, perspective, light direction and shadows, objects do not pass through each other or melt"
-            + " into the background, held objects are gripped by a hand or paw. No duplicated or cut-off characters at the frame edge.";
+            + " into the background, held objects are gripped by a hand or paw. No duplicated or cut-off characters at the frame edge."
+            + "\n" + "SAFE CONTENT (follow the image service's content policy): no blood, gore, wounds, injuries, corpses, severed body"
+            + " parts, torture or executions; battles are shown through charging troops, raised weapons, banners, smoke, dust, fire"
+            + " on ships and soldiers retreating, never a weapon striking or piercing a person. Everyone fully and modestly clothed,"
+            + " no nudity or sexualised poses. Children are never in danger or harmed. No real living people or celebrities, no"
+            + " modern political, religious-hate or extremist symbols, no logos or brand names. Calm, respectful, suitable for all ages.";
 
     /** How the agent checks a generated picture before keeping it. */
     static final String QUALITY_CHECK = """
@@ -308,7 +313,12 @@ final class AgentPrompts {
     /** @param niche "story" (tale with characters and a moral), "facts" ("Bạn có biết?") or "history" (wars). */
     static String storyboard(String topic, int scenes, String language, String style, String aspect,
                              List<CharacterRef> chars, boolean append, String niche) {
-        String full = "facts".equals(niche) ? storyboardFacts(topic, scenes, language, style, aspect)
+        if ("drama".equals(niche)) {
+            // Appending a drama = cutting the next episode / part: the prompt has no intro or closing to drop.
+            String d = storyboardDrama(topic, scenes, language, style, aspect, chars);
+            return style != null && style.toLowerCase().contains("chibi") ? d + CHIBI_RULES : d;
+        }
+        String full ="facts".equals(niche) ? storyboardFacts(topic, scenes, language, style, aspect)
                 : "history".equals(niche) ? storyboardHistory(topic, scenes, language, style, aspect, chars)
                 : storyboardFull(topic, scenes, language, style, aspect, chars);
         if (style != null && style.toLowerCase().contains("chibi")) full = full + CHIBI_RULES;
@@ -436,28 +446,30 @@ final class AgentPrompts {
                   - Be fair and factual about every side: no insults, no hate, no glorifying violence or gore.
 
                 FIXED STRUCTURE (always, for every history video, in this order). Laid out for 34 scenes; with a different
-                scene count keep all 7 parts in the same order and scale each part's share (Part 4 always the longest):
-                  PART 1 - HOOK (scenes 1-3, ~9%%):
-                    1. A striking opening line: the most dramatic fact or number of the war, or a paradox ("Một đội quân
-                       từng chinh phục nửa thế giới… lại thất bại ở đây."). Never a greeting or "Hôm nay chúng ta sẽ…".
-                       Its picture is the most dramatic moment of the decisive battle.
-                    2. When, where and who against whom (year, place, the two sides).
-                    3. The question the video answers ("Vì sao…?" / "Bằng cách nào…?"), to keep viewers watching.
-                  PART 2 - BACKGROUND AND CAUSES (scenes 4-8, ~15%%):
-                    4. The country before the war (dynasty, rulers, people's life).
-                    5. The enemy (or the opposing faction in a civil war): who they were and how strong.
-                    6. Their ambition or plan, or the internal conflict behind a civil war.
-                    7. The spark: the event that started the war.
-                    8. How the court and the people reacted, and the decision to fight: a recorded proclamation,
+                scene count keep all 7 parts in the same order and scale each part's share (Part 1 is ALWAYS exactly one
+                scene, Part 4 always the longest):
+                  PART 1 - HOOK (scene 1 only, never more than one scene):
+                    1. One short, striking opening: the most dramatic fact or a paradox of the war ("Một đội quân từng
+                       chinh phục nửa thế giới… lại thất bại ở đây."), with the year and who fought whom in the same
+                       breath, ending on the question the video answers ("Vì sao…?" / "Bằng cách nào…?"). At most 2
+                       sentences. Never a greeting or "Hôm nay chúng ta sẽ…". Its picture is the most dramatic moment of
+                       the decisive battle. Do NOT spend more scenes on introduction: go straight into the story.
+                  PART 2 - BACKGROUND AND CAUSES (scenes 2-6, ~15%%):
+                    2. The country before the war (dynasty, rulers, people's life).
+                    3. The enemy (or the opposing faction in a civil war): who they were and how strong.
+                    4. Their ambition or plan, or the internal conflict behind a civil war.
+                    5. The spark: the event that started the war.
+                    6. How the court and the people reacted, and the decision to fight: a recorded proclamation,
                        oath, council or call to arms.
-                  PART 3 - THE TWO SIDES (scenes 9-12, ~12%%):
-                    9. Our commander(s): who they were.
-                    10. The enemy commander(s).
-                    11. Comparing the forces (troops, weapons, terrain) with the real recorded figures.
-                    12. Each side's strategy.
-                  PART 4 - HOW IT UNFOLDED (scenes 13-26, ~41%%), in chronological order, with dates when known:
-                    13-16. Early phase: the attack, the first battles, hardships or a strategic retreat.
-                    17-20. Turning point: preparation and counter-attack; scene 20 shows the real clever tactic, ambush,
+                  PART 3 - THE TWO SIDES (scenes 7-10, ~12%%):
+                    7. Our commander(s): who they were.
+                    8. The enemy commander(s).
+                    9. Comparing the forces (troops, weapons, terrain) with the real recorded figures.
+                    10. Each side's strategy.
+                  PART 4 - HOW IT UNFOLDED (scenes 11-26, ~47%%, the heart of the video), in chronological order, with
+                  dates when known:
+                    11-15. Early phase: the attack, the first battles, hardships or a strategic retreat.
+                    16-20. Turning point: preparation and counter-attack; scene 20 shows the real clever tactic, ambush,
                            terrain or weather that changed the war (a true "twist" that keeps people watching).
                     21-26. The decisive battle(s): the main steps, the climax, the moment of victory or defeat.
                   PART 5 - RESULT (scenes 27-30, ~12%%):
@@ -548,6 +560,9 @@ final class AgentPrompts {
                     spoken: simple words, no lists, no parentheses.
                 """ + WRITING_RULES + """
                     Link scenes so the story flows (cause → effect, "Nhưng…", "Ngay sau đó…").
+                  - Image prompts use neutral, non-graphic words (the image service refuses violent wording): never "blood",
+                    "kill", "slaughter", "massacre", "corpse", "dead bodies", "behead", "execute", "stab", "wound", "torture";
+                    say "charge", "clash", "push back", "defeat", "retreat", "capture", "surrender", "fallen banners" instead.
                   - imagePrompt (English): "Characters: <historical figures from styleBible who appear, or none>. Setting:
                     <real place, Vietnamese era details, weather, time of day>. Action: <what happens, expressions: our side bright-eyed and
                     kind, heroes majestic and fearless, invaders scowling and menacing>. Mood: <peace: bright fresh tones |
@@ -560,6 +575,101 @@ final class AgentPrompts {
                 """).formatted(topic, n, language,
                 blankTo(style, chars == null || chars.isEmpty()
                         ? "epic cinematic historical painting of feudal Vietnam, dramatic lighting, rich detail"
+                        : "exactly the art style of the character reference images (same medium, rendering, palette)"),
+                aspect);
+    }
+
+    /** Usual shot count of one drama episode (2–3 minutes of 2–4 s shots). */
+    static final int DRAMA_SHOTS = 40;
+
+    /**
+     * Drama niche: the user pastes one episode of a screenplay (scene headings, action lines, CHARACTER: dialogue).
+     * It is cut into shots; every line of dialogue is kept word for word and spoken by that character's own voice,
+     * so there is no narrator. Each shot names its speaker; on-screen text (messages, caption cards) is never voiced.
+     */
+    static String storyboardDrama(String screenplay, int shots, String language, String style, String aspect,
+                                  List<CharacterRef> chars) {
+        return characterBrief(chars) + ("""
+                You are the director and editor of a vertical short DRAMA series (TikTok / Reels / Shorts). Below is ONE
+                episode of its screenplay. Cut it into SHOTS for a motion-comic style video: every shot is one still picture
+                (slow zoom added later) with at most one line of dialogue, spoken by that character's own voice.
+                There is NO narrator: the characters' voices, the pictures and on-screen text tell the story.
+
+                SCREENPLAY (the source; keep its order and its words):
+                <<<
+                %s
+                >>>
+
+                Target number of shots: about %d (the screenplay decides; more is fine when the dialogue needs it)
+                Dialogue language: %s
+                Visual style: %s
+                Aspect ratio: %s
+
+                Write ./storyboard.json (overwrite it) as one JSON object:
+                {
+                  "styleBible": "...",
+                  "characters": [{"name": "...", "look": "..."}],
+                  "cast": [{"name": "...", "gender": "male|female", "note": "..."}],
+                  "scenes": [{"speaker": "...", "narration": "...", "imagePrompt": "...", "seconds": 3}]
+                }
+
+                cast: EVERY speaker of the episode (main and minor: "Bảo vệ", "Đồng nghiệp 1"…), except TEXT.
+                  - name: how the character is called, in normal capitalisation (the screenplay writes it in capitals):
+                    "KHẢI:" → "Khải", "ÔNG HOÀNG:" → "Ông Hoàng", "TRƯỞNG NHÓM MỚI (HÀ):" → "Hà", "ĐỒNG NGHIỆP 1:" →
+                    "Đồng nghiệp 1". One name per person, used identically everywhere (speaker, characters, prompts).
+                  - gender: "male" or "female". note (English): age and voice manner, e.g. "42, deep, slow, cold, mocking".
+
+                characters: the RECURRING people who are seen (not one-off extras), same names as in cast, with "look" =
+                  their fixed appearance in English (gender, age, Vietnamese, face, hairstyle, body, signature outfit with
+                  colours, one distinctive accessory, e.g. Diệp's ring). The app draws a reference portrait from it.
+
+                styleBible (English, 100-220 words), prepended to every picture prompt, self-contained:
+                  - STYLE: one look for the whole series. Default: cinematic modern Asian drama still, realistic, shallow depth
+                    of field, moody contrast; cool blue-grey palette for the executive floor, warmer light in homes and cafés.
+                  - CHARACTERS: each recurring character's fixed look (as in characters), using the same names.
+                  - SETTING: the recurring places (meeting room, open office, corridor…) described once.
+                  - Always end with: "No text, no captions, no subtitles, no watermarks in the image."
+
+                SHOTS (the core of the job):
+                  1. Follow the screenplay from its first line to its last. Shot 1 is the episode's first beat as written,
+                     straight into the conflict: no title card, no introduction, no closing lesson, no recap you invent.
+                  2. DIALOGUE: every "NAME: line" becomes a shot whose speaker = that cast name and narration = the line
+                     WORD FOR WORD (same words, same order, same punctuation). Never paraphrase, shorten, merge or add lines.
+                     - Parenthetical directions inside or before a line ("(cười nhẹ)", "(ngắt lời)", "(nhỏ)", "(qua điện
+                       thoại)") are NOT spoken: remove them from narration and use them for the expression / framing.
+                     - A line longer than about 20 words is split at a sentence or comma boundary into 2 shots with the same
+                       speaker: the second one shows the listener's reaction or a different framing.
+                     - "X (giọng Y)" or a written note read in Y's voice → speaker = Y.
+                  3. ON-SCREEN TEXT: text messages ("TIN NHẮN:"), caption cards ("TEXT TRÊN MÀN HÌNH:"), notes, screen
+                     contents the viewer must read → speaker = "TEXT", narration = the exact words (it is shown, not voiced).
+                     Its picture shows the object (phone in a hand, laptop screen, note paper) with the text area left
+                     blank: picture generators cannot write words. A caption card like "Còn 30 ngày…" is a dark, moody
+                     frame (black background or a dim shot of the empty chair). seconds = words / 3, at least 2.
+                  4. ACTION lines and inserts become SILENT shots (speaker "", narration ""), seconds 1.5-4, but only the
+                     beats the viewer must see: the establishing shot of each new scene heading, key actions (a file thrown on
+                     the table, the badge taken off), inserts ("Insert:", "Cận …": the ring being twisted, the PC label), and
+                     the reaction close-ups that carry a twist. Do not make a silent shot for every sentence.
+                  5. Timecodes like "(0:00)", "(1:50)" are guides only: never put them in narration or prompts.
+                  6. END: the last shot is the episode's final beat (the cliffhanger / cut to black), exactly as written.
+
+                imagePrompt (English) for each shot, ONLY what is specific to it, in this form:
+                  "Characters: <names in frame, exactly as in characters>. Setting: <place, light, time>. Action: <what each
+                  does, expression>. Framing: <shot size, angle, who is where>."
+                  - When the shot has a speaker, that person is in frame with the face clearly visible (talking, mouth slightly
+                    open), unless the line is heard over a phone or from off screen.
+                  - Vary framing like a TV drama: wide establishing shot when a scene starts, medium two-shots for exchanges,
+                    close-ups for emotional lines and reactions, extreme close-ups for inserts and objects, over-the-shoulder
+                    shots for confrontations, low angle for power (the villain), high angle for the humiliated hero.
+                  - Name absent recurring characters only as "<name> is NOT in this scene." when it matters.
+                  - Never ask for written words, logos or readable screens in the picture.
+
+                Narration rules: dialogue stays word for word, but numbers already written as words may stay; when you must
+                write a number yourself use digits.
+                """ + WRITING_RULES + """
+                Write only that file, nothing else.
+                """).formatted(screenplay, shots, language,
+                blankTo(style, chars == null || chars.isEmpty()
+                        ? "cinematic modern Asian drama still, realistic, shallow depth of field, moody contrast"
                         : "exactly the art style of the character reference images (same medium, rendering, palette)"),
                 aspect);
     }

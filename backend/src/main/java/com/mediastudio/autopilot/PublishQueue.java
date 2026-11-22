@@ -21,7 +21,7 @@ import java.util.Set;
  * Background worker for the posts list. One item at a time (Flow and the TikTok Chrome profile can only do one
  * thing at once). Every ~20 s, when nothing is running:
  * <ol>
- *   <li>a READY post whose time has come is published;</li>
+ *   <li>a READY post whose time has come is published (a draft post: right away, saved as a TikTok draft);</li>
  *   <li>otherwise the next QUEUED post (earliest time first) is prepared, ahead of its time, and becomes READY.</li>
  * </ol>
  * States: QUEUED → PREPARING → READY → POSTING → POSTED, or FAILED (with the error) at any step.
@@ -108,13 +108,14 @@ public class PublishQueue {
         Instant now = Instant.now();
         List<Project> all = projects.list();
         Optional<Project> due = all.stream()
-                .filter(p -> "READY".equals(p.queueState) && p.scheduledAt != null && !p.scheduledAt.isAfter(now))
-                .min(Comparator.comparing(p -> p.scheduledAt));
+                .filter(p -> "READY".equals(p.queueState)
+                        && (p.queueDraft || (p.scheduledAt != null && !p.scheduledAt.isAfter(now))))
+                .min(Comparator.comparing((Project p) -> p.scheduledAt == null ? Instant.MIN : p.scheduledAt));
         if (due.isPresent()) {
             String id = due.get().id;
             set(id, "POSTING", null);
             currentProject = id;
-            current = jobs.start("autopilot", "Đăng: " + due.get().name, id, null, ctx -> {
+            current = jobs.start("autopilot", (due.get().queueDraft ? "Lưu nháp: " : "Đăng: ") + due.get().name, id, null, ctx -> {
                 try {
                     autopilot.publish(id, ctx);
                     projects.mutate(id, pr -> { pr.queueState = "POSTED"; pr.queueStep = null; pr.queueError = null; });
@@ -136,7 +137,10 @@ public class PublishQueue {
                 try {
                     autopilot.prepare(id, ctx);
                     projects.mutate(id, pr -> { pr.queueState = "READY"; pr.queueStep = null; pr.queueError = null; });
-                    ctx.log("✔ Sẵn sàng" + (projects.get(id).scheduledAt == null ? " (chưa hẹn giờ đăng)" : ", chờ đến giờ đăng"));
+                    Thread.ofVirtual().start(() -> { try { Thread.sleep(3000); } catch (InterruptedException ignored) { } tick(); });
+                    Project done = projects.get(id);
+                    ctx.log("✔ Sẵn sàng" + (done.queueDraft ? ", lưu nháp TikTok ngay"
+                            : done.scheduledAt == null ? " (chưa hẹn giờ đăng)" : ", chờ đến giờ đăng"));
                 } catch (Exception e) {
                     set(id, "FAILED", e.getMessage());
                     if (AutopilotService.refused(e)) {

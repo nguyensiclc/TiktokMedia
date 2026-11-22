@@ -35,13 +35,14 @@ public class AgentController {
         return gemini.all(id, onlyMissing);
     }
 
-    /** {topic, scenes, language, style, append, niche?: story|facts} */
+    /** {topic, scenes, language, style, append, niche?: story|facts|history|drama} — for drama, topic is the screenplay. */
     @PostMapping("/storyboard")
     public Job storyboard(@PathVariable String id, @RequestBody Map<String, Object> body) {
         String topic = String.valueOf(body.getOrDefault("topic", "")).trim();
         if (topic.isEmpty()) throw new IllegalArgumentException("Hãy nhập chủ đề");
         int scenes = Integer.parseInt(String.valueOf(body.getOrDefault("scenes", 6)));
-        return agent.storyboard(id, topic, Math.max(1, Math.min(scenes, AgentPrompts.MAX_SCENES)),
+        // The service caps the count per niche (34 scenes, or 80 shots for a drama episode).
+        return agent.storyboard(id, topic, Math.max(1, Math.min(scenes, com.mediastudio.project.Project.MAX_DRAMA_SHOTS)),
                 String.valueOf(body.getOrDefault("language", "Vietnamese")),
                 chibiStyle(String.valueOf(body.getOrDefault("style", "")),
                         Boolean.parseBoolean(String.valueOf(body.getOrDefault("chibi", false)))),

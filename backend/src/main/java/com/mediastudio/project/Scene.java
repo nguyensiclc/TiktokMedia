@@ -6,6 +6,20 @@ public class Scene {
     public String id = UUID.randomUUID().toString().substring(0, 8);
     /** Voice-over text, sent to Voicebox and used for subtitles. */
     public String narration = "";
+    /**
+     * Drama shots: who says the line in {@code narration} (a cast name, voiced with that person's voice);
+     * {@link #SCREEN_TEXT} = words shown on screen (a text message, a caption card), never voiced;
+     * blank = narrator (the project voice).
+     */
+    public String speaker;
+    /** Speaker value for on-screen text (messages, "Còn 30 ngày…"): shown in subtitles, no voice. */
+    public static final String SCREEN_TEXT = "TEXT";
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isScreenText() {
+        return speaker != null && SCREEN_TEXT.equalsIgnoreCase(speaker.trim());
+    }
+
     /** Prompt used to generate the visual on Google Flow / Canva. */
     public String imagePrompt = "";
     /** File name inside assets/ (image or video). */

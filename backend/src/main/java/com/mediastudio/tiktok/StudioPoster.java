@@ -54,6 +54,11 @@ public class StudioPoster {
      * @param aiLabel turn on TikTok's "AI-generated content" label (the pictures are AI-made)
      */
     public Job post(String projectId, String privacy, String caption, boolean aiLabel) {
+        return post(projectId, privacy, caption, aiLabel, false);
+    }
+
+    /** @param draft true = click "Save draft" instead of Post: nothing is published, the post waits in Studio's drafts. */
+    public Job post(String projectId, String privacy, String caption, boolean aiLabel, boolean draft) {
         Project p = projects.get(projectId);
         if (!PRIVACY.containsKey(privacy)) throw new IllegalArgumentException("Hãy chọn ai được xem bài đăng");
         if (p.slideFiles == null || p.slideFiles.isEmpty()) throw new IllegalArgumentException("Chưa có ảnh lướt — hãy Xuất danh sách ảnh trước");
@@ -63,7 +68,7 @@ public class StudioPoster {
         String text = caption != null ? caption.trim() : (p.tiktokCaption == null ? "" : p.tiktokCaption.trim());
         if (text.length() > 2200) text = text.substring(0, 2200);
         String finalText = text;
-        return jobs.start("tiktok-studio", "TikTok Studio: đăng " + Math.min(p.slideFiles.size(), MAX_PHOTOS) + " ảnh",
+        return jobs.start("tiktok-studio", "TikTok Studio: " + (draft ? "lưu nháp " : "đăng ") + Math.min(p.slideFiles.size(), MAX_PHOTOS) + " ảnh",
                 projectId, null, ctx -> {
             Path dir = projects.dir(projectId);
             List<String> paths = new ArrayList<>();
@@ -77,12 +82,12 @@ public class StudioPoster {
                         + (paths.size() - MAX_PHOTOS) + " ảnh cuối)");
                 paths = paths.subList(0, MAX_PHOTOS);
             }
-            ctx.log("▶ Mở TikTok Studio, tải " + paths.size() + " ảnh, chế độ xem: " + PRIVACY.get(privacy));
+            ctx.log("▶ Mở TikTok Studio, tải " + paths.size() + " ảnh, chế độ xem: " + PRIVACY.get(privacy) + (draft ? ", lưu nháp" : ""));
             Path out = dir.resolve(RESULT);
             Files.deleteIfExists(out);
             Path downloads = projects.folder(projectId, "downloads");
             Path cfg = mcp.writePlaywright(dir.resolve(".mcp-tiktok.json"), downloads);
-            claude.run(prompt(paths, finalText, PRIVACY.get(privacy), aiLabel),
+            claude.run(draft ? draftPrompt(prompt(paths, finalText, PRIVACY.get(privacy), aiLabel)) : prompt(paths, finalText, PRIVACY.get(privacy), aiLabel),
                     "You operate TikTok Studio in a browser for the account owner, who asked for this post and approved"
                             + " every step described. Work autonomously; never ask questions. Never solve captchas or"
                             + " security checks.", dir, cfg, List.of("mcp__playwright", "Write"), ctx);
@@ -100,11 +105,42 @@ public class StudioPoster {
                     projects.mutate(projectId, pr -> pr.tiktokPosts.add(0, post));
                     ctx.log("✔ Đã đăng " + paths.size() + " ảnh lên TikTok Studio. " + msg);
                 }
+                case "DRAFTED" -> {
+                    Project.TiktokPost post = new Project.TiktokPost();
+                    post.mode = "studio-draft";
+                    post.file = p.slidesZip != null ? p.slidesZip : paths.size() + " ảnh";
+                    post.privacy = privacy;
+                    post.status = "DRAFT_VIA_STUDIO";
+                    projects.mutate(projectId, pr -> pr.tiktokPosts.add(0, post));
+                    ctx.log("✔ Đã lưu " + paths.size() + " ảnh vào bản nháp TikTok Studio (chưa đăng). " + msg);
+                }
                 case "NEED_LOGIN" -> throw new IOException("TikTok chưa đăng nhập trong profile Chrome này: bấm \"Mở Chrome để đăng nhập TikTok\", đăng nhập rồi đóng Chrome");
                 case "BLOCKED" -> throw new IOException("TikTok yêu cầu xác minh (captcha/bảo mật): hãy mở Chrome, tự xác minh rồi thử lại. " + msg);
                 default -> throw new IOException("Không đăng được: " + msg);
             }
         });
+    }
+
+    /** Turns the post instructions into "save as draft" ones: steps 1-5 stay, the Post click and its check are replaced. */
+    static String draftPrompt(String post) {
+        int a = post.indexOf("6. Click the red Post button");
+        int b = post.indexOf("8. Write ./");
+        if (a < 0 || b < 0) throw new IllegalStateException("draft prompt: post steps not found");
+        String steps = """
+                6. DO NOT click Post / "Đăng". Click the "Save draft" / "Lưu bản nháp" button (usually next to Post,
+                   grey / outlined). If a dialog asks to confirm saving the draft, confirm it. If there is no draft
+                   button at all, do not post: write FAILED with message "không thấy nút Lưu bản nháp" and stop.
+                7. Wait (up to 2 minutes) for the success state: a "draft saved" message ("Đã lưu bản nháp", "Draft
+                   saved"), or the page moving to the content / drafts list. Then CHECK it: open
+                   https://www.tiktok.com/tiktokstudio/content, open the Drafts tab ("Bản nháp" / "Drafts") if there is
+                   one, and look for a draft created just now with the caption's first words. If you saw the success
+                   message or that draft is there, the status is DRAFTED; otherwise FAILED with what you saw.
+                   Take a final screenshot (browser_take_screenshot, filename "tiktok-studio-done.png").
+                """;
+        return post.substring(0, a) + steps + post.substring(b)
+                .replace("\"POSTED\" | \"NEED_LOGIN\"", "\"DRAFTED\" | \"NEED_LOGIN\"")
+                .replace("Never click Post more than once.", "Never click Post at all: this is a draft only. Never save the draft more than once.")
+                .replaceFirst("Publish a PHOTO post", "Prepare a PHOTO post and SAVE IT AS A DRAFT (do NOT publish)");
     }
 
     static String prompt(List<String> files, String caption, String privacyLabel, boolean aiLabel) {

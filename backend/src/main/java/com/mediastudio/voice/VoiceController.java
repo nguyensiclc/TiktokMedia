@@ -151,7 +151,8 @@ public class VoiceController {
 
         List<String> targets = new ArrayList<>();
         for (Scene sc : p.scenes) {
-            if ((sceneId == null || sceneId.equals(sc.id)) && !blank(sc.narration)) targets.add(sc.id);
+            // On-screen text (drama messages, caption cards) is read by the viewer, never spoken.
+            if ((sceneId == null || sceneId.equals(sc.id)) && !blank(sc.narration) && !sc.isScreenText()) targets.add(sc.id);
         }
         if (targets.isEmpty()) throw new IllegalArgumentException("Không có cảnh nào có lời thoại");
 
@@ -160,17 +161,23 @@ public class VoiceController {
         return jobs.start("voice", label + ": " + targets.size() + " cảnh", id, sceneId, ctx -> {
             if (v) ctx.log("  giọng: " + (blank(voice) ? "mặc định" : voice));
             if (speed != 1.0) ctx.log("  tốc độ đọc: ×" + speed);
+            if (!projects.get(id).cast.isEmpty()) autoCast(id, voice, v, ctx);
             for (int i = 0; i < targets.size(); i++) {
                 if (ctx.cancelled()) return;
                 String sid = targets.get(i);
-                Scene sc = projects.get(id).scene(sid);
-                ctx.log("▶ (" + (i + 1) + "/" + targets.size() + ") Tạo giọng cho cảnh " + sid);
+                Project cur = projects.get(id);
+                Scene sc = cur.scene(sid);
+                // Drama: each speaker's own voice; narrator lines and unknown speakers use the project voice.
+                Project.CastMember who = cur.castMember(sc.speaker);
+                String lineVoice = who != null && !blank(who.voice) ? who.voice : voice;
+                ctx.log("▶ (" + (i + 1) + "/" + targets.size() + ") Tạo giọng cho cảnh " + sid
+                        + (who != null ? " · " + who.name : ""));
                 long t0 = System.currentTimeMillis();
                 // Narration keeps digits (shown in subtitles); the voice gets them spelled out.
                 String spoken = v || (lang != null && lang.toLowerCase().startsWith("vi"))
                         ? SpokenNumbers.vietnamese(sc.narration) : sc.narration;
-                byte[] wav = v ? vieneu.speak(spoken, voice, ctx)
-                        : voicebox.speak(spoken, voice, lang, ctx);
+                byte[] wav = v ? vieneu.speak(spoken, lineVoice, ctx)
+                        : voicebox.speak(spoken, lineVoice, lang, ctx);
                 String name = "scene-" + sid + "-voice.wav";
                 Path f = projects.file(id, "assets", name);
                 if (speed != 1.0) {
@@ -192,6 +199,62 @@ public class VoiceController {
                         (System.currentTimeMillis() - t0) / 1000.0));
             }
         });
+    }
+
+    /**
+     * Gives every cast member without a voice one of the provider's voices: same gender when known, a voice nobody
+     * else (nor the narrator) uses while there are enough, then reused in turn. Saved on the project so the user
+     * sees the choice and can change it.
+     */
+    private void autoCast(String id, String narratorVoice, boolean v, JobContext ctx) {
+        List<Project.CastMember> todo = projects.get(id).cast.stream().filter(m -> blank(m.voice)).toList();
+        if (todo.isEmpty()) return;
+        JsonNode list;
+        try {
+            list = v ? vieneu.voices() : voicebox.profiles();
+        } catch (Exception e) {
+            ctx.log("  ⚠ không lấy được danh sách giọng để chia vai (" + e.getMessage() + "), các vai chưa chọn dùng giọng dự án");
+            return;
+        }
+        List<String[]> voices = new ArrayList<>(); // {id, gender, name}
+        for (JsonNode n : list) {
+            String vid = n.path("id").asText("");
+            String g = n.path("gender").asText("").trim().toLowerCase();
+            g = g.startsWith("nữ") || g.startsWith("nu") || g.startsWith("f") ? "female"
+                    : g.startsWith("nam") || g.startsWith("m") ? "male" : "";
+            if (!vid.isBlank()) voices.add(new String[]{vid, g, n.path("name").asText(vid),
+                    (n.path("name").asText("") + " " + n.path("description").asText("")).toLowerCase()});
+        }
+        if (voices.isEmpty()) return;
+        // Dialogue sounds best in a conversational voice: natural style first, storytelling next, news readers
+        // after, joke voices ("bựa") last. Stable sort keeps the provider's order inside each group.
+        voices.sort(java.util.Comparator.comparingInt(x -> x[3].contains("bựa") ? 9
+                : x[3].contains("tự nhiên") ? 0 : x[3].contains("truyện") || x[3].contains("kể chuyện") ? 1
+                : x[3].contains("tin tức") ? 2 : 1));
+        java.util.Set<String> used = new java.util.HashSet<>();
+        if (!blank(narratorVoice)) used.add(narratorVoice);
+        for (Project.CastMember m : projects.get(id).cast) if (!blank(m.voice)) used.add(m.voice);
+        Map<String, String[]> picks = new java.util.LinkedHashMap<>();
+        Map<String, Integer> reuse = new java.util.HashMap<>();
+        for (Project.CastMember m : todo) {
+            String g = m.gender == null ? "" : m.gender;
+            List<String[]> fit = voices.stream().filter(x -> g.isBlank() || x[1].isBlank() || x[1].startsWith(g)).toList();
+            if (fit.isEmpty()) fit = voices;
+            String[] pick = fit.stream().filter(x -> !used.contains(x[0])).findFirst().orElse(null);
+            if (pick == null) {
+                int k = reuse.merge(g, 1, Integer::sum) - 1;
+                pick = fit.get(k % fit.size());
+            }
+            used.add(pick[0]);
+            picks.put(m.name, pick);
+        }
+        projects.mutate(id, pr -> {
+            for (Project.CastMember m : pr.cast) {
+                String[] pick = picks.get(m.name);
+                if (pick != null && blank(m.voice)) m.voice = pick[0];
+            }
+        });
+        picks.forEach((name, pick) -> ctx.log("  🎭 " + name + " → " + pick[2]));
     }
 
     /** Rounds to 0.05 steps within ffmpeg atempo's single-pass range. */

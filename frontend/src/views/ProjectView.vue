@@ -9,6 +9,8 @@ import CharacterRefs from '../components/CharacterRefs.vue'
 import TiktokPublish from '../components/TiktokPublish.vue'
 import SourceImages from '../components/SourceImages.vue'
 import ProjectVoice from '../components/ProjectVoice.vue'
+import CastVoices from '../components/CastVoices.vue'
+import DramaWriter from '../components/DramaWriter.vue'
 import ProjectSound from '../components/ProjectSound.vue'
 import SlidesPanel from '../components/SlidesPanel.vue'
 import TimelineEditor from '../components/TimelineEditor.vue'
@@ -30,7 +32,11 @@ const NICHES = [
     placeholder: 'VD: 5 sự thật đáng sợ về hố đen, giọng kể hào hứng' },
   { id: 'history', label: 'Lịch sử · chiến tranh', icon: 'flag', hint: 'Luôn 7 phần theo thứ tự: mở đầu gây tò mò, bối cảnh và nguyên nhân, lực lượng hai bên, diễn biến (dài nhất), kết quả, ý nghĩa, kết. Chỉ dùng sự kiện, số liệu, lời nói có thật trong sử sách, không giả sử, không bịa. Tối đa 34 cảnh (cộng ảnh bìa là 35 ảnh, mức tối đa của TikTok).',
     placeholder: 'VD: Trận Bạch Đằng năm 938, Ngô Quyền đánh quân Nam Hán' },
+  { id: 'drama', label: 'Drama · phim ngắn', icon: 'film', hint: 'Dán nguyên văn kịch bản một tập. Claude chia thành shot (mỗi shot một hình, tối đa một câu thoại), giữ đúng từng câu thoại. Mỗi nhân vật đọc bằng giọng riêng, không có người dẫn. Tin nhắn và chữ trên màn hình chỉ hiện chữ, không đọc. Nhân vật và giọng được giữ nguyên qua các tập.',
+    placeholder: 'CẢNH 1 – NỘI. PHÒNG HỌP LỚN TẦNG 18 – SÁNG\n(0:00) Cận mặt một tập hồ sơ bị ném mạnh xuống bàn…\nKHẢI: Ngân sách quý bốn bị gửi thẳng cho đối thủ…' },
 ]
+const DRAMA_SHOTS = 40
+const MAX_SHOTS = 80
 const HISTORY_TOPICS = ['Hai Bà Trưng khởi nghĩa', 'Ngô Quyền và trận Bạch Đằng 938', 'Lý Thường Kiệt đánh Tống', 'Kháng chiến chống Nguyên Mông lần 3', 'Khởi nghĩa Lam Sơn', 'Quang Trung đại phá quân Thanh', 'Nội chiến Trịnh – Nguyễn', 'Tây Sơn và Nguyễn Ánh']
 const FACT_TOPICS = ['5 sự thật khó tin về vũ trụ', 'Điều gì xảy ra nếu Mặt Trời biến mất?', 'Sự thật về hố đen', 'Những loài vật kỳ lạ dưới đáy đại dương', 'Cơ thể người có những bí mật gì?', 'Sao Kim: hành tinh địa ngục', 'Nếu Trái Đất ngừng quay', 'Những kỷ lục tự nhiên đáng kinh ngạc']
 const niche = computed(() => NICHES.find((n) => n.id === sb.value.niche) || NICHES[0])
@@ -40,7 +46,8 @@ vueWatch(() => sb.value.niche, (n, old) => {
   if (!old) return
   if (n === 'facts' && sb.value.scenes === 6) sb.value.scenes = 7
   if (n === 'history') sb.value.scenes = 34
-  else if (sb.value.scenes > 34 || (old === 'history' && sb.value.scenes === 34)) sb.value.scenes = n === 'facts' ? 7 : 6
+  else if (n === 'drama') sb.value.scenes = DRAMA_SHOTS
+  else if (sb.value.scenes > 34 || (old === 'history' && sb.value.scenes === 34) || old === 'drama') sb.value.scenes = n === 'facts' ? 7 : 6
   if (project.value && project.value.niche !== n) { project.value.niche = n; changed() }
 })
 
@@ -54,7 +61,10 @@ const analyzing = computed(() => running.value.some((j) => j.type === 'analyze' 
 const emptyCount = computed(() => (project.value?.scenes || []).filter((s) => !s.mediaFile && (s.imagePrompt || '').trim()).length)
 const scenesAll = computed(() => project.value?.scenes || [])
 const missingCount = computed(() => scenesAll.value.filter((s) => !s.mediaFile).length)
-const voiceMissing = computed(() => scenesAll.value.filter((s) => (s.narration || '').trim() && !s.audioFile).length)
+// On-screen text (drama messages, caption cards) is shown, never voiced.
+const isScreenText = (s) => (s.speaker || '').trim().toUpperCase() === 'TEXT'
+const voiceMissing = computed(() => scenesAll.value.filter((s) => (s.narration || '').trim() && !s.audioFile && !isScreenText(s)).length)
+const castNames = computed(() => (project.value?.cast || []).map((c) => c.name))
 const lastFlowFailed = computed(() => { const j = jobs.value.find((x) => /flow/i.test(x.title || '')); return !!j && j.status === 'FAILED' })
 
 // The workflow as six steps; each shows where the project stands so the next move is obvious.
@@ -136,6 +146,7 @@ async function load() {
     sb.value.topic = sb.value.topic || project.value.topic || ''
     sb.value.niche = project.value.niche || 'story'
     if (sb.value.niche === 'history') sb.value.scenes = 34
+    if (sb.value.niche === 'drama') sb.value.scenes = DRAMA_SHOTS
   } catch (e) {
     error.value = e.message
   }
@@ -282,11 +293,22 @@ async function setRef(sceneId) {
 
 const jobLabel =(j) => ({ RUNNING: '⏳', DONE: '✔', FAILED: '✖' }[j.status] + ' ' + j.title)
 
+// The chat assistant changed something: show it (and follow the jobs it started).
+async function onAssistant(e) {
+  const pid = e.detail?.projectId
+  if (pid && pid !== '*' && pid !== props.id) return
+  await flush()
+  await load()
+  await loadJobs()
+}
+
 onMounted(async () => {
   await load()
   await loadJobs()
+  window.addEventListener('ms:refresh', onAssistant)
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('ms:refresh', onAssistant)
   if (saveTimer) save()
   watchers.forEach((es) => es.close())
 })
@@ -347,6 +369,11 @@ onBeforeUnmount(() => {
                        @portraits="(ids) => run(() => api.portraits(id, ids))" />
         </div>
 
+        <DramaWriter v-if="tab === 'kichban' && sb.niche === 'drama'" :project="project"
+                     :busy="running.some((j) => j.type.startsWith('drama') || j.type === 'storyboard')"
+                     @run="(step, body) => run(() => api.drama(id, step, body))"
+                     @use="(e) => { sb.topic = e.script; sb.append = false }" />
+
         <div v-show="tab === 'kichban'" id="step-kichban" class="panel">
           <h3>Kịch bản · nhờ Claude chia cảnh</h3>
           <div class="field">
@@ -359,14 +386,14 @@ onBeforeUnmount(() => {
             <p class="hint">{{ niche.hint }}</p>
           </div>
           <div class="field">
-            <label>Chủ đề / mô tả video</label>
-            <textarea v-model="sb.topic" rows="2" :placeholder="niche.placeholder" />
-            <div v-if="sb.niche !== 'story'" class="topic-chips" aria-label="Gợi ý chủ đề">
+            <label>{{ sb.niche === 'drama' ? 'Kịch bản một tập (dán nguyên văn: tiêu đề cảnh, hành động, TÊN: lời thoại)' : 'Chủ đề / mô tả video' }}</label>
+            <textarea v-model="sb.topic" :rows="sb.niche === 'drama' ? 14 : 2" :placeholder="niche.placeholder" />
+            <div v-if="sb.niche === 'facts' || sb.niche === 'history'" class="topic-chips" aria-label="Gợi ý chủ đề">
               <button v-for="t in (sb.niche === 'history' ? HISTORY_TOPICS : FACT_TOPICS)" :key="t" type="button" class="topic-chip small" @click="sb.topic = t">{{ t }}</button>
             </div>
           </div>
           <div class="row">
-            <div style="width:90px"><label>Số cảnh</label><input v-model.number="sb.scenes" type="number" min="1" :max="34" /></div>
+            <div style="width:90px"><label>{{ sb.niche === 'drama' ? 'Số shot' : 'Số cảnh' }}</label><input v-model.number="sb.scenes" type="number" min="1" :max="sb.niche === 'drama' ? MAX_SHOTS : 34" /></div>
             <div style="width:140px"><label>Ngôn ngữ lời thoại</label><input v-model="sb.language" /></div>
             <div class="grow"><label>Phong cách hình</label><input v-model="sb.style" placeholder="cinematic, anime, flat illustration…" /></div>
           </div>
@@ -374,7 +401,7 @@ onBeforeUnmount(() => {
             <label class="row chk" title="Nhân vật đầu to, mắt to, thân nhỏ dễ thương (2–3 đầu)"><input v-model="sb.chibi" type="checkbox" /> Nhân vật chibi dễ thương</label>
             <label class="row chk"><input v-model="sb.append" type="checkbox" /> Thêm vào cuối (không thay thế)</label>
             <span class="grow" />
-            <button class="primary" :disabled="!sb.topic" @click="run(() => api.storyboard(id, sb))"><Icon name="sparkles" /> Tạo kịch bản</button>
+            <button class="primary" :disabled="!sb.topic" @click="run(() => api.storyboard(id, sb))"><Icon name="sparkles" /> {{ sb.niche === 'drama' ? 'Chia shot' : 'Tạo kịch bản' }}</button>
           </div>
         </div>
 
@@ -402,6 +429,7 @@ onBeforeUnmount(() => {
         <ProjectSound :project="project" :version="version" @changed="changed" @error="(m) => (error = m)"
                       @music="(p) => { project.musicFile = p.musicFile; project.musicStart = p.musicStart; project.updatedAt = p.updatedAt }" />
 
+        <CastVoices v-if="!project.scriptMode && project.cast?.length" :project="project" @changed="changed" />
         <ProjectVoice v-if="!project.scriptMode" :project="project" @changed="changed" />
         </div>
 
@@ -430,6 +458,7 @@ onBeforeUnmount(() => {
           :busy="busyScenes.has(s.id)"
           :is-ref="project.styleRefSceneId === s.id"
           :script-mode="project.scriptMode"
+          :cast="project.niche === 'drama' || castNames.length ? castNames : null"
           @ref="setRef(s.id)"
           class="scene"
           @change="changed"

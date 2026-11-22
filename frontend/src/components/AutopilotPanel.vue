@@ -10,6 +10,7 @@ const scenes = ref(34)
 const privacy = ref('SELF_ONLY')
 const aiLabel = ref(true)
 const chibi = ref(false)
+const draft = ref(true)
 const schedule = ref(true)
 const startAt = ref(defaultStart())
 const interval = ref(24)
@@ -42,7 +43,7 @@ function toLocalInput(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 const preview = computed(() => {
-  if (!schedule.value || !startAt.value) return []
+  if (draft.value || !schedule.value || !startAt.value) return []
   const t0 = new Date(startAt.value).getTime()
   return list.value.slice(0, 3).map((t, i) => new Date(t0 + i * interval.value * 3600e3))
 })
@@ -57,8 +58,8 @@ async function add() {
   busy.value = true
   try {
     const created = await api.post('/api/queue', {
-      topics: topics.value, niche: niche.value, scenes: scenes.value, privacy: privacy.value, aiLabel: aiLabel.value, chibi: chibi.value,
-      startAt: schedule.value && startAt.value ? new Date(startAt.value).toISOString() : '',
+      topics: topics.value, niche: niche.value, scenes: scenes.value, privacy: privacy.value, aiLabel: aiLabel.value, chibi: chibi.value, draft: draft.value,
+      startAt: !draft.value && schedule.value && startAt.value ? new Date(startAt.value).toISOString() : '',
       intervalHours: interval.value,
     })
     topics.value = ''
@@ -76,7 +77,7 @@ async function add() {
     <h3><Icon name="plus" /> Thêm bài vào danh sách đăng</h3>
     <p class="muted small">
       Mỗi dòng một chủ đề. App tự tạo dự án, viết kịch bản, tạo hình bằng Flow, xuất ảnh 3:4, viết caption, rồi đăng
-      lên TikTok đúng giờ. Bài được chuẩn bị sẵn từ trước, đến giờ mới đăng.
+      lên TikTok: lưu vào bản nháp ngay khi xong, hoặc đăng đúng giờ hẹn.
     </p>
     <textarea v-model="topics" rows="3" placeholder="VD:&#10;Ngô Quyền và trận Bạch Đằng năm 938&#10;Quang Trung đại phá quân Thanh năm 1789" />
     <div class="opts">
@@ -89,6 +90,14 @@ async function add() {
       <label class="inl" title="Nhân vật đầu to, mắt to, thân nhỏ dễ thương (2–3 đầu)"><input v-model="chibi" type="checkbox" /> Nhân vật chibi dễ thương</label>
     </div>
     <div class="opts">
+      <span class="muted small">Khi xong</span>
+      <div class="seg" role="radiogroup" aria-label="Khi chuẩn bị xong">
+        <label :class="{ on: draft }"><input v-model="draft" type="radio" name="add-mode" :value="true" /> Lưu nháp TikTok</label>
+        <label :class="{ on: !draft }"><input v-model="draft" type="radio" name="add-mode" :value="false" /> Đăng lên TikTok</label>
+      </div>
+      <span v-if="draft" class="muted small">Không đăng gì: bài nằm trong Bản nháp của TikTok Studio, bạn tự đăng sau.</span>
+    </div>
+    <div v-if="!draft" class="opts">
       <label class="row chk"><input v-model="schedule" type="checkbox" /> Hẹn giờ đăng</label>
       <template v-if="schedule">
         <label class="inl">Bài đầu <input v-model="startAt" type="datetime-local" /></label>

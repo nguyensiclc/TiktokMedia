@@ -426,6 +426,8 @@ onMounted(() => {
         <div class="field"><label>Workspace</label><input v-model="s.workspaceDir" /></div>
         <div class="field"><label>Claude CLI</label><input v-model="s.claudePath" /></div>
         <div class="field"><label>Model Claude chung (trống = mặc định)</label><input v-model="s.claudeModel" placeholder="vd: sonnet, opus" /></div>
+        <div class="field"><label>Model của Trợ lý chat (trống = model chung)</label><input v-model="s.claudeModelAssistant" placeholder="sonnet" /></div>
+        <div class="field"><label>Node.js (công cụ của Trợ lý)</label><input v-model="s.nodePath" placeholder="node" /></div>
         <div class="field" style="grid-column: 1 / -1">
           <label>Công cụ AI cho: viết kịch bản · viết mô tả TikTok</label>
           <select v-model="s.aiWriting" style="width:320px" @change="save">

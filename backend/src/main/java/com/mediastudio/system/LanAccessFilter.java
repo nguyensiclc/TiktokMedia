@@ -52,6 +52,20 @@ public class LanAccessFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * Server mode (MEDIASTUDIO_REMOTE_ADMIN=true, e.g. a Mac with no screen): devices that entered the PIN may do
+     * everything this computer can (settings, sign-ins, free-form commands).
+     */
+    public static boolean remoteAdmin() {
+        return "true".equalsIgnoreCase(System.getenv("MEDIASTUDIO_REMOTE_ADMIN"));
+    }
+
+    /** PIN fixed by the environment (MEDIASTUDIO_LAN_PIN): turns access from other devices on without Settings. */
+    public static String envPin() {
+        String p = System.getenv("MEDIASTUDIO_LAN_PIN");
+        return p == null || p.isBlank() ? null : p.trim();
+    }
+
     static boolean isPrivate(String addr) {
         try {
             InetAddress a = InetAddress.getByName(addr);
@@ -73,19 +87,25 @@ public class LanAccessFilter extends OncePerRequestFilter {
         }
         String ip = req.getRemoteAddr();
         var s = settings.get();
-        if (!s.lanAccess || s.lanPin == null || s.lanPin.isBlank() || !isPrivate(ip)) {
+        String pin = envPin() != null ? envPin() : s.lanPin;
+        boolean on = envPin() != null || s.lanAccess;
+        if (!on || pin == null || pin.isBlank() || !isPrivate(ip)) {
             deny(res, 403, "Truy cập từ thiết bị khác đang tắt. Bật \"Dùng trên điện thoại\" trong Cài đặt trên máy tính.");
             return;
         }
         String path = req.getRequestURI();
 
         if ("/api/lan/login".equals(path) && "POST".equals(req.getMethod())) {
-            login(req, res, ip, s.lanPin);
+            login(req, res, ip, pin);
             return;
         }
         if (!authenticated(req)) {
             if (path.startsWith("/api/")) deny(res, 401, "Cần nhập mã PIN");
             else loginPage(res);
+            return;
+        }
+        if (remoteAdmin()) {
+            chain.doFilter(req, res);
             return;
         }
         // Things a phone must never do, even with the PIN.

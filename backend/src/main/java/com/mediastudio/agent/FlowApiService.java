@@ -245,14 +245,17 @@ public class FlowApiService {
                 if (e.getMessage().startsWith("không kết nối")) break; // service went away: stop
                 continue;
             }
+            boolean refused = false;
             for (int k = 0; k < part.size(); k++) {
                 Result r = res.get(k);
                 int n = nums.get(k);
                 String sid = part.get(k);
                 if (r.error() != null && r.error().contains("FLOW_REFUSED")) {
-                    // Google refused ("unusual activity"): every further request would be refused too. Stop everything.
+                    // Google refused ("unusual activity"): keep the pictures other tabs already finished, then stop.
                     ctx.log("  ✖ Cảnh " + n + ": Google Flow từ chối (hoạt động bất thường)");
-                    throw new IOException(FLOW_REFUSED_MSG);
+                    failed.add(n);
+                    refused = true;
+                    continue;
                 }
                 if (r.error() != null || r.image() == null || r.image().length < 1000) {
                     failed.add(n);
@@ -269,6 +272,10 @@ public class FlowApiService {
                 ctx.log("  ✔ Cảnh " + n + " xong (" + r.image().length / 1024 + " KB)");
             }
             ctx.log("  · lượt này mất " + (System.currentTimeMillis() - a) / 1000 + "s");
+            if (refused) {
+                ctx.log("  · đã lưu " + ok + " cảnh xong trước khi bị từ chối");
+                throw new IOException(FLOW_REFUSED_MSG);
+            }
         }
         ctx.log("✔ Xong " + ok + "/" + ids.size() + " cảnh trong " + (System.currentTimeMillis() - t0) / 1000 + "s"
                 + (failed.isEmpty() ? "" : "; lỗi ở cảnh " + failed));
@@ -298,11 +305,12 @@ public class FlowApiService {
             ctx.log("… Đang vẽ chân dung: " + todo.stream().map(cid -> pr0.character(cid).name).toList());
             List<Result> res = generate(prompts, null, "3:4", appName(projectId));
             int ok = 0;
+            boolean refused = false;
             for (int k = 0; k < todo.size(); k++) {
                 Result r = res.get(k);
                 String cid = todo.get(k);
                 String name = pr0.character(cid).name;
-                if (r.error() != null && r.error().contains("FLOW_REFUSED")) throw new IOException(FLOW_REFUSED_MSG);
+                if (r.error() != null && r.error().contains("FLOW_REFUSED")) { refused = true; ctx.log("  ✖ " + name + ": Google Flow từ chối"); continue; }
                 if (r.error() != null || r.image() == null || r.image().length < 1000) {
                     ctx.log("  ✖ " + name + ": " + (r.error() != null ? r.error() : "ảnh trống"));
                     continue;
@@ -320,6 +328,7 @@ public class FlowApiService {
                 ok++;
                 ctx.log("  ✔ " + name);
             }
+            if (refused) throw new IOException(FLOW_REFUSED_MSG);
             if (ok == 0) throw new IOException("Không vẽ được chân dung nào");
             ctx.log("✔ Xong " + ok + "/" + todo.size() + " chân dung. Các cảnh có nhân vật này sẽ dùng ảnh làm tham chiếu.");
         });

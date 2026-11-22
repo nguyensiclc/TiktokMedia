@@ -58,6 +58,7 @@ public class ProjectController {
             if (body.tiktokCaption != null) p.tiktokCaption = body.tiktokCaption;
             p.voice = body.voice;
             p.voiceSpeed = body.voiceSpeed;
+            if (body.cast != null) p.cast = body.cast;
             p.scriptMode = body.scriptMode;
             if (body.musicVolume != null) p.musicVolume = Math.max(0, Math.min(1, body.musicVolume));
             p.musicStart = body.musicStart == null ? 0.0 : Math.max(0, body.musicStart);
@@ -68,6 +69,7 @@ public class ProjectController {
                 Scene s = server.getOrDefault(in.id, new Scene());
                 if (in.id != null) s.id = in.id;
                 s.narration = in.narration;
+                s.speaker = in.speaker == null || in.speaker.isBlank() ? null : in.speaker.trim();
                 s.imagePrompt = in.imagePrompt;
                 s.duration = in.duration;
                 s.customDuration = in.customDuration;

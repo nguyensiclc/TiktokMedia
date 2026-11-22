@@ -26,6 +26,10 @@ public class AppSettings {
     public String claudeModel = "";
     /** Model for image analysis + storyboard writing (quality matters most here). Empty = claudeModel. */
     public String claudeModelWriting = "opus";
+    /** Model of the chat assistant that drives the app (empty = claudeModel). */
+    public String claudeModelAssistant = "sonnet";
+    /** Node.js executable that runs the assistant's app tool (MCP server). */
+    public String nodePath = "node";
     /** Which CLI does the writing jobs (TikTok caption, image analysis, storyboard): "claude" or "agy". */
     public String aiWriting = "claude";
     /** Antigravity CLI executable and model (see `agy models`). */

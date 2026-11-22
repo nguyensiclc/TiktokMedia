@@ -29,6 +29,7 @@ export const api = {
   deleteProject: (id) => api.del(`/api/projects/${id}`),
 
   storyboard: (id, body) => api.post(`/api/projects/${id}/storyboard`, body),
+  drama: (id, step, body) => api.post(`/api/projects/${id}/drama/${step}`, body),
   flow: (id, sceneId, mediaType) => api.post(`/api/projects/${id}/scenes/${sceneId}/flow`, { mediaType }),
   flowAll: (id, mediaType = 'image', onlyMissing = true) => api.post(`/api/projects/${id}/flow-all`, { mediaType, onlyMissing }),
   canva: (id, sceneId) => api.post(`/api/projects/${id}/scenes/${sceneId}/canva`),

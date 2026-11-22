@@ -24,6 +24,7 @@ const STATE = {
   READY: { label: 'Sẵn sàng', cls: 'ready' },
   POSTING: { label: 'Đang đăng', cls: 'run' },
   POSTED: { label: 'Đã đăng', cls: 'ok' },
+  DRAFTED: { label: 'Đã lưu nháp', cls: 'ok' },
   FAILED: { label: 'Lỗi', cls: 'bad' },
 }
 const NICHE = { history: 'Lịch sử', story: 'Truyện', facts: 'Bạn có biết' }
@@ -55,16 +56,18 @@ function steps(p) {
   const withPrompt = p.scenes.filter((s) => (s.imagePrompt || '').trim()).length
   const withMedia = p.scenes.filter((s) => s.mediaFile).length
   const script = p.scenes.some((s) => (s.narration || '').trim())
-  const posted = p.queueState === 'POSTED' || (p.tiktokPosts || []).some((t) => t.status === 'POSTED_VIA_STUDIO')
+  const posted = p.queueState === 'POSTED' || (p.tiktokPosts || []).some((t) => ['POSTED_VIA_STUDIO', 'DRAFT_VIA_STUDIO'].includes(t.status))
   return [
     { k: 'Kịch bản', done: script, text: script ? p.scenes.length + ' cảnh' : '' },
     { k: 'Hình', done: script && withPrompt > 0 && withMedia >= withPrompt, part: withMedia > 0 && withMedia < withPrompt, text: script ? `${withMedia}/${withPrompt}` : '' },
     { k: 'Ảnh lướt', done: (p.slideFiles || []).length > 0, text: (p.slideFiles || []).length ? p.slideFiles.length + ' ảnh' : '' },
     { k: 'Caption', done: !!(p.tiktokCaption || '').trim() },
-    { k: 'Đăng', done: posted },
+    { k: p.queueDraft ? 'Nháp' : 'Đăng', done: posted },
   ]
 }
 function stateOf(p) {
+  if (p.queueDraft && p.queueState === 'POSTED') return STATE.DRAFTED
+  if (p.queueDraft && p.queueState === 'POSTING') return { label: 'Đang lưu nháp', cls: 'run' }
   if (p.queueState) return STATE[p.queueState] || { label: p.queueState, cls: '' }
   return steps(p)[4].done ? STATE.POSTED : { label: 'Ngoài danh sách', cls: 'none' }
 }
@@ -173,8 +176,8 @@ function added(list) {
 }
 const open = (p) => router.push(`/project/${p.id}`)
 
-onMounted(async () => { await load(); loop() })
-onBeforeUnmount(() => clearTimeout(timer))
+onMounted(async () => { await load(); loop(); window.addEventListener('ms:refresh', load) })
+onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refresh', load) })
 </script>
 
 <template>
@@ -252,7 +255,7 @@ onBeforeUnmount(() => clearTimeout(timer))
         <template v-if="p.queueState && p.queueState !== 'POSTED'">
           <input type="datetime-local" :value="toLocalInput(p.scheduledAt)" :disabled="p.queueState === 'POSTING'"
                  aria-label="Giờ đăng" @change="(e) => setTime(p, e.target.value)" />
-          <span class="muted small">{{ p.scheduledAt ? rel(p.scheduledAt) : 'chưa hẹn giờ' }}</span>
+          <span class="muted small">{{ p.queueDraft ? 'lưu nháp khi xong' : p.scheduledAt ? rel(p.scheduledAt) : 'chưa hẹn giờ' }}</span>
         </template>
         <span v-else-if="p.postedAt" class="small">{{ fmt(p.postedAt) }}</span>
         <span v-else class="muted small">—</span>

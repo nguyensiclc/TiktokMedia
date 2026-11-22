@@ -14,9 +14,18 @@ public class Project {
     public String topic = "";
     /**
      * Content niche: "story" (tales, fables: characters + moral), "facts" ("Bạn có biết?" science / space facts) or
-     * "history" (wars, resistance, civil wars: fixed cause → forces → events → result → meaning structure, real facts only).
+     * "history" (wars, resistance, civil wars: fixed cause → forces → events → result → meaning structure, real facts only)
+     * or "drama" (a pasted screenplay episode cut into shots, each line spoken in its own character's voice).
      */
-    public static final java.util.Set<String> NICHES = java.util.Set.of("story", "facts", "history");
+    public static final java.util.Set<String> NICHES = java.util.Set.of("story", "facts", "history", "drama");
+
+    /** Shots per drama episode: a 2–3 minute episode runs about 35–50 shots of 2–4 s. */
+    public static final int MAX_DRAMA_SHOTS = 80;
+
+    /** Most scenes the script step may write for this niche. */
+    public static int maxScenes(String niche) {
+        return "drama".equals(niche) ? MAX_DRAMA_SHOTS : MAX_SCENES;
+    }
 
     /** Story scenes per post: TikTok allows 35 photos and the cover slide takes one. */
     public static final int MAX_SCENES = 34;
@@ -49,6 +58,29 @@ public class Project {
     public String voice;
     /** Reading tempo for this project (0.5–2.0); null = Settings default. */
     public Double voiceSpeed;
+
+    /** Drama series written in the app (ideas → outline → episode screenplays); null = the user pastes their own. */
+    public DramaSeries drama;
+
+    /** Drama: everyone who speaks, each with their own voice. Lines of a speaker not listed use the project voice. */
+    public List<CastMember> cast = new ArrayList<>();
+
+    public static class CastMember {
+        /** As written in the shots' speaker field, e.g. "Khải". */
+        public String name = "";
+        /** "male" / "female" / "" — used to pick a fitting voice automatically. */
+        public String gender = "";
+        /** Age and manner of speaking, e.g. "42, deep, slow, cold". */
+        public String note = "";
+        /** VieNeu voice id / Voicebox profile id; null = picked automatically on the first voice run. */
+        public String voice;
+    }
+
+    public CastMember castMember(String speaker) {
+        if (speaker == null || speaker.isBlank()) return null;
+        String k = speaker.trim();
+        return cast.stream().filter(c -> c.name != null && c.name.trim().equalsIgnoreCase(k)).findFirst().orElse(null);
+    }
 
     /**
      * true = "script" mode: no audio is made or used; each scene's narration is drawn on the picture
@@ -98,6 +130,8 @@ public class Project {
     public Integer queueScenes;
     /** Posts list: write the script with cute chibi characters. */
     public boolean queueChibi;
+    /** true = when ready, save the post as a TikTok Studio draft right away (no posting time, nothing published). */
+    public boolean queueDraft;
     public Instant postedAt;
 
     /** Source images (book pages, illustrations, photos…) the video is built from; files in assets/. */

@@ -49,12 +49,19 @@ public class AgentService {
         return storyboard(projectId, topic, count, language, style, append, null);
     }
 
-    /** @param niche "story" / "facts" / "history"; null = keep the project's niche. */
+    /** @param niche "story" / "facts" / "history" / "drama"; null = keep the project's niche. */
     public Job storyboard(String projectId, String topic, int count, String language, String style, boolean append,
                           String niche) {
         if (niche != null && Project.NICHES.contains(niche)) projects.mutate(projectId, pr -> pr.niche = niche);
-        return jobs.start("storyboard", "Kịch bản: " + topic, projectId, null,
-                ctx -> runStoryboard(projectId, topic, topic, count, language, style, append, ctx));
+        String n = projects.get(projectId).niche;
+        int max = Project.maxScenes(n);
+        int shots = Math.max(1, Math.min(count, max));
+        // A drama topic is a whole pasted episode: name the job by its first line only.
+        String first = topic.strip().lines().findFirst().orElse("").strip();
+        String title = "drama".equals(n) ? "Chia shot: " + (first.length() > 60 ? first.substring(0, 60) + "…" : first)
+                : "Kịch bản: " + topic;
+        return jobs.start("storyboard", title, projectId, null,
+                ctx -> runStoryboard(projectId, topic, topic, shots, language, style, append, ctx));
     }
 
     /**
@@ -170,7 +177,8 @@ public class AgentService {
                                String style, boolean append, String ai, String model, JobContext ctx) throws Exception {
         {
             Path dir = projects.dir(projectId);
-            if (!append) {
+            // A drama series keeps its people from episode to episode (same faces, same portraits).
+            if (!append && !"drama".equals(projects.get(projectId).niche)) {
                 // A new script brings its own main figures: drop the ones the last script made (and their portraits).
                 for (CharacterRef c : projects.get(projectId).characters) {
                     if (c.auto && c.file != null) Files.deleteIfExists(dir.resolve("assets").resolve(c.file));
@@ -195,10 +203,20 @@ public class AgentService {
             String bible = root.path("styleBible").asText("").trim();
             if (!arr.isArray() || arr.isEmpty()) throw new IOException("storyboard.json không hợp lệ");
             List<Scene> scenes = new ArrayList<>();
+            boolean drama = "drama".equals(p.niche);
             for (JsonNode n : arr) {
                 Scene s = new Scene();
                 s.narration = n.path("narration").asText("");
                 s.imagePrompt = n.path("imagePrompt").asText("");
+                if (drama) {
+                    String who = n.path("speaker").asText("").trim();
+                    s.speaker = who.isEmpty() ? null : who.equalsIgnoreCase(Scene.SCREEN_TEXT) ? Scene.SCREEN_TEXT : who;
+                    double sec = n.path("seconds").asDouble(0);
+                    // Silent shots and on-screen text have no voice: their length comes from here.
+                    if (sec > 0) s.duration = Math.max(1.0, Math.min(sec, 10.0));
+                    else if (s.isScreenText()) s.duration = Scene.scriptSeconds(s.narration, 3.0);
+                    else if (s.narration.isBlank()) s.duration = 2.5;
+                }
                 scenes.add(s);
             }
             projects.mutate(projectId, pr -> {
@@ -225,7 +243,35 @@ public class AgentService {
                     r.auto = true;
                     pr.characters.add(r);
                 }
+                // Drama cast: keep the voices already chosen (a series keeps its voices), add new speakers.
+                for (JsonNode c : root.path("cast")) {
+                    String name = c.path("name").asText("").trim();
+                    if (name.isEmpty() || name.equalsIgnoreCase(Scene.SCREEN_TEXT)) continue;
+                    Project.CastMember m = pr.castMember(name);
+                    if (m == null) {
+                        m = new Project.CastMember();
+                        m.name = name;
+                        pr.cast.add(m);
+                    }
+                    String g = c.path("gender").asText("").trim().toLowerCase();
+                    if (g.equals("male") || g.equals("female")) m.gender = g;
+                    String note = c.path("note").asText("").trim();
+                    if (!note.isEmpty()) m.note = note;
+                }
+                // A speaker the cast list forgot still gets a row, so a voice can be picked for it.
+                for (Scene s : scenes) {
+                    if (s.speaker == null || s.isScreenText() || pr.castMember(s.speaker) != null) continue;
+                    Project.CastMember m = new Project.CastMember();
+                    m.name = s.speaker;
+                    pr.cast.add(m);
+                }
             });
+            if (drama) {
+                long lines = scenes.stream().filter(s -> s.speaker != null && !s.isScreenText() && !s.narration.isBlank()).count();
+                long texts = scenes.stream().filter(Scene::isScreenText).count();
+                ctx.log("  " + lines + " câu thoại · " + texts + " chữ trên màn hình · "
+                        + (scenes.size() - lines - texts) + " shot không lời · " + projects.get(projectId).cast.size() + " vai có giọng");
+            }
             long made = projects.get(projectId).characters.stream().filter(c -> c.auto && c.file == null).count();
             if (made > 0) ctx.log("  + " + made + " nhân vật chính (bấm \"Tạo chân dung\" ở mục Nhân vật để vẽ ảnh tham chiếu)");
             ctx.log("✔ Đã tạo " + scenes.size() + " cảnh" + (bible.isEmpty() ? "" : " + bộ quy tắc hình ảnh"));

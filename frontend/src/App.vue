@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import AssistantChat from './components/AssistantChat.vue'
 
 // light | dark | system — remembered per browser only (a convenience, never required).
 const themes = [
@@ -47,6 +48,7 @@ const focusMain = () => document.getElementById('main')?.focus()
     </main>
   </div>
   <ConfirmDialog />
+  <AssistantChat />
 </template>
 
 <style scoped>

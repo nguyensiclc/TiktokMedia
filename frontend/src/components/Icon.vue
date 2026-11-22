@@ -3,14 +3,14 @@
 // so every icon-only button must carry its own aria-label / title.
 import {
   AlertTriangle, ArrowLeft, Check, ChevronRight, Clapperboard, Copy, FileText, Film, Flag, FlaskConical, Folder, FolderOpen, Image,
-  Inbox, KeyRound, LayoutGrid, Link, Loader2, MapPin, Mic, Monitor, Moon, Music, Palette, Pause, Play, Plus, Rocket, Send,
+  Bot, Inbox, KeyRound, MessageCircle, RotateCcw, LayoutGrid, Link, Loader2, MapPin, Mic, Monitor, Moon, Music, Palette, Pause, Play, Plus, Rocket, Send,
   Settings, SlidersHorizontal, Smartphone, Sparkles, Square, Star, Sun, Trash2, Wand2, X, XCircle, Zap, ZoomIn,
 } from 'lucide-vue-next'
 
 const map = {
   alert: AlertTriangle, back: ArrowLeft, check: Check, chevron: ChevronRight, clapper: Clapperboard, copy: Copy, file: FileText,
   film: Film, flag: Flag, flask: FlaskConical, folder: Folder, 'folder-open': FolderOpen, image: Image, inbox: Inbox, key: KeyRound,
-  grid: LayoutGrid, link: Link, loader: Loader2, pin: MapPin, mic: Mic, monitor: Monitor, moon: Moon, music: Music,
+  bot: Bot, chat: MessageCircle, reset: RotateCcw, grid: LayoutGrid, link: Link, loader: Loader2, pin: MapPin, mic: Mic, monitor: Monitor, moon: Moon, music: Music,
   palette: Palette, pause: Pause, play: Play, plus: Plus, rocket: Rocket, send: Send, settings: Settings, sliders: SlidersHorizontal,
   phone: Smartphone, sparkles: Sparkles, stop: Square, star: Star, sun: Sun, trash: Trash2, flow: Wand2, x: X, fail: XCircle, zap: Zap, zoom: ZoomIn,
 }

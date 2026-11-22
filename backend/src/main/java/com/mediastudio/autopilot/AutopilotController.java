@@ -26,8 +26,9 @@ public class AutopilotController {
     }
 
     /**
-     * {topics: "one per line", niche, scenes?, chibi?, privacy?, aiLabel?, startAt?: ISO instant, intervalHours?: 24}
+     * {topics: "one per line", niche, scenes?, chibi?, draft?, privacy?, aiLabel?, startAt?: ISO instant, intervalHours?: 24}
      * — one new 9:16 project per topic, posted at startAt, startAt + interval, … (no startAt = only prepared).
+     * draft = saved as a TikTok Studio draft as soon as it is ready (no time, nothing published).
      */
     @PostMapping
     public List<Project> add(@RequestBody Map<String, Object> body) {
@@ -42,7 +43,8 @@ public class AutopilotController {
         if (!StudioPoster.PRIVACY_KEYS.contains(privacy)) throw new IllegalArgumentException("Quyền xem không hợp lệ");
         boolean ai = !Boolean.FALSE.equals(body.get("aiLabel"));
         boolean chibi = Boolean.parseBoolean(String.valueOf(body.getOrDefault("chibi", false)));
-        Instant start = blank(body.get("startAt")) ? null : Instant.parse(String.valueOf(body.get("startAt")));
+        boolean draft = Boolean.parseBoolean(String.valueOf(body.getOrDefault("draft", false)));
+        Instant start = draft || blank(body.get("startAt")) ? null : Instant.parse(String.valueOf(body.get("startAt")));
         double hours = body.get("intervalHours") == null ? 24 : Double.parseDouble(String.valueOf(body.get("intervalHours")));
         Duration step = Duration.ofMinutes(Math.max(10, Math.round(hours * 60)));
 
@@ -59,6 +61,7 @@ public class AutopilotController {
                 pr.slideRatio = "3:4";
                 pr.queueScenes = sc;
                 pr.queueChibi = chibi;
+                pr.queueDraft = draft;
                 pr.queuePrivacy = privacy;
                 pr.queueAiLabel = ai;
                 pr.scheduledAt = at;

@@ -10,8 +10,15 @@ const props = defineProps({
   version: String,
   busy: Boolean,
   isRef: Boolean,
-  scriptMode: Boolean
+  scriptMode: Boolean,
+  /** Drama: cast names a line can be given to; null = not a drama (no speaker field). */
+  cast: Array
 })
+const screenText = computed(() => (props.scene.speaker || '').trim().toUpperCase() === 'TEXT')
+function setSpeaker(v) {
+  props.scene.speaker = v || null
+  emit('change')
+}
 const emit = defineEmits(['change', 'remove', 'move', 'flow', 'gemini', 'canva', 'voice', 'upload', 'clear', 'ref'])
 
 const mediaUrl = computed(() => props.scene.mediaFile && fileUrl(props.projectId, 'assets', props.scene.mediaFile, props.version))
@@ -52,8 +59,17 @@ const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upl
         <button class="small danger icon-only" title="Xoá cảnh" aria-label="Xoá cảnh" @click="emit('remove')"><Icon name="x" /></button>
       </div>
 
+      <div v-if="cast" class="field row speaker">
+        <label :for="`spk-${scene.id}`" style="margin:0">Người nói</label>
+        <select :id="`spk-${scene.id}`" :value="scene.speaker || ''" @change="setSpeaker($event.target.value)">
+          <option value="">— Không lời / người dẫn —</option>
+          <option value="TEXT">Chữ trên màn hình (không đọc)</option>
+          <option v-for="n in cast" :key="n" :value="n">{{ n }}</option>
+          <option v-if="scene.speaker && !screenText && !cast.includes(scene.speaker)" :value="scene.speaker">{{ scene.speaker }}</option>
+        </select>
+      </div>
       <div class="field">
-        <label>{{ scriptMode ? 'Lời script (hiện trên hình cho người đọc)' : 'Lời thoại (giọng đọc)' }}</label>
+        <label>{{ scriptMode ? 'Lời script (hiện trên hình cho người đọc)' : screenText ? 'Chữ hiện trên màn hình (không đọc)' : 'Lời thoại (giọng đọc)' }}</label>
         <textarea v-model="scene.narration" rows="2" @input="emit('change')" />
       </div>
       <div class="field">
@@ -76,7 +92,7 @@ const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upl
         <span v-if="!isLast && words" class="muted">· chữ kết thúc bằng "..."</span>
       </div>
       <div v-else class="row actions">
-        <button class="small" :disabled="busy || !scene.narration" @click="emit('voice')"><Icon name="mic" /> Tạo giọng</button>
+        <button v-if="!screenText" class="small" :disabled="busy || !scene.narration" @click="emit('voice')"><Icon name="mic" /> Tạo giọng</button>
         <button class="small" @click="pick('audio', 'audio/*')">⬆ Audio</button>
         <audio v-if="audioUrl" :src="audioUrl" controls class="grow" />
         <span v-if="scene.audioDuration" class="muted">{{ scene.audioDuration.toFixed(1) }}s</span>
@@ -108,6 +124,8 @@ const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upl
 .actions { margin-top: 6px; }
 audio { height: 30px; min-width: 160px; }
 .dur { width: 70px; }
+.speaker { gap: 8px; align-items: center; }
+.speaker select { width: auto; min-width: 180px; }
 @media (max-width: 820px) {
   .scene { flex-direction: column; gap: 10px; }
   .media { width: 100%; aspect-ratio: auto; height: 46vh; max-height: 420px; }

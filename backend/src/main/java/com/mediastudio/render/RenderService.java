@@ -348,7 +348,8 @@ public class RenderService {
         for (int i = 0; i < p.scenes.size(); i++) {
             if (ctx.cancelled()) return;
             Scene s = p.scenes.get(i);
-            Path audio = p.scriptMode || s.audioFile == null ? null : assets.resolve(s.audioFile);
+            // On-screen text (drama) is never voiced, even if an old take is still attached.
+            Path audio = p.scriptMode || s.audioFile == null || s.isScreenText() ? null : assets.resolve(s.audioFile);
             if (audio != null && !Files.exists(audio)) audio = null;
             Path media = s.mediaFile == null ? null : assets.resolve(s.mediaFile);
             if (media != null && !Files.exists(media)) media = null;

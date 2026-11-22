@@ -31,9 +31,21 @@ public class SettingsController {
     }
 
     @PutMapping
-    public AppSettings update(@RequestBody AppSettings body) {
+    public AppSettings update(@RequestBody AppSettings body, HttpServletRequest req) {
+        if (!LanAccessFilter.isLocal(req)) {
+            // Other devices got the settings without secrets: blank means "unchanged", not "erase".
+            AppSettings cur = settings.get();
+            if (blank(body.tiktokClientSecret)) body.tiktokClientSecret = cur.tiktokClientSecret;
+            if (blank(body.geminiApiKey)) body.geminiApiKey = cur.geminiApiKey;
+            if (blank(body.lanPin)) body.lanPin = cur.lanPin;
+        }
         if (body.lanAccess && (body.lanPin == null || body.lanPin.isBlank())) body.lanPin = newPin();
-        return settings.update(body);
+        settings.update(body);
+        return get(req);
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
     }
 
     String newPin() {

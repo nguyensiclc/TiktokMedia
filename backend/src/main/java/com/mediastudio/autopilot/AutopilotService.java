@@ -108,7 +108,8 @@ public class AutopilotService {
     /** TikTok Studio post with the project's queue settings. */
     public void publish(String id, JobContext ctx) throws Exception {
         Project p = projects.get(id);
-        step(id, ctx, "Đăng lên TikTok Studio", () -> studio.post(id, p.queuePrivacy, null, p.queueAiLabel));
+        step(id, ctx, p.queueDraft ? "Lưu nháp TikTok Studio" : "Đăng lên TikTok Studio",
+                () -> studio.post(id, p.queuePrivacy, null, p.queueAiLabel, p.queueDraft));
         projects.mutate(id, pr -> pr.postedAt = Instant.now());
     }
 
