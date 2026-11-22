@@ -56,6 +56,7 @@ public class ProjectController {
             if (body.niche != null && Project.NICHES.contains(body.niche)) p.niche = body.niche;
             p.styleBible = body.styleBible;
             if (body.tiktokCaption != null) p.tiktokCaption = body.tiktokCaption;
+            if (body.tiktokTitle != null) p.tiktokTitle = body.tiktokTitle.strip();
             p.voice = body.voice;
             p.voiceSpeed = body.voiceSpeed;
             if (body.cast != null) p.cast = body.cast;

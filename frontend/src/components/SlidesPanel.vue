@@ -17,6 +17,8 @@ const privacy = ref('SELF_ONLY')
 const aiLabel = ref(true)
 const caption = ref(props.project.tiktokCaption || '')
 watch(() => props.project.tiktokCaption, (c) => { if (c) caption.value = c })
+const title = ref(props.project.tiktokTitle || '')
+watch(() => props.project.tiktokTitle, (t) => { if (t) title.value = t })
 const tooMany = computed(() => (props.project.slideFiles || []).length > 35)
 async function openLogin() {
   try {
@@ -35,7 +37,7 @@ async function studio() {
       + (privacy.value === 'PUBLIC' ? ' Bài sẽ hiện công khai ngay.' : ''),
     confirmLabel: 'Đăng', icon: 'send',
   })
-  if (ok) emit('studio', { privacy: privacy.value, caption: caption.value, aiLabel: aiLabel.value })
+  if (ok) emit('studio', { privacy: privacy.value, title: title.value, caption: caption.value, aiLabel: aiLabel.value })
 }
 
 const withText = ref(true)
@@ -155,10 +157,11 @@ function go(d) {
         </div>
         <p v-if="tooMany" class="warn small">TikTok cho tối đa 35 ảnh mỗi bài: chỉ 35 ảnh đầu được đăng.</p>
         <div class="row" style="justify-content:space-between">
-          <label class="small" style="margin:0">Caption và hashtag</label>
-          <button class="small" type="button" :disabled="busy" @click="emit('caption')"><Icon name="sparkles" /> Claude viết caption</button>
+          <label class="small" style="margin:0">Tiêu đề, caption và hashtag</label>
+          <button class="small" type="button" :disabled="busy" @click="emit('caption')"><Icon name="sparkles" /> Claude viết tiêu đề & caption</button>
         </div>
-        <textarea v-model="caption" rows="4" maxlength="2200" placeholder="Câu mở đầu, vài dòng tóm tắt, lời mời theo dõi, #hashtag" />
+        <input v-model="title" maxlength="90" aria-label="Tiêu đề bài đăng" placeholder="Tiêu đề, VD: 17 tuổi cưỡi voi đánh giặc: Bà Triệu" />
+        <textarea v-model="caption" rows="3" maxlength="2200" aria-label="Caption" placeholder="2-3 câu thật cuốn + #hashtag" />
         <div class="ratio">
           <span class="muted small" id="view-lbl">Ai được xem</span>
           <div class="seg" role="radiogroup" aria-labelledby="view-lbl">

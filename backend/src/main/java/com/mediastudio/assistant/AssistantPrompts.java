@@ -28,7 +28,7 @@ final class AssistantPrompts {
             MÔ HÌNH DỮ LIỆU
             Project {id, name, aspect "9:16"|"16:9"|"1:1", niche "story"|"facts"|"history"|"drama", topic, styleBible,
               scenes:[Scene], voice, voiceSpeed, scriptMode, musicFile, musicVolume, lastRender, slideFiles, slidesZip,
-              coverTitle, coverTeaser, tiktokCaption, characters:[{id,name,description,file}], sources:[file],
+              coverTitle, coverTeaser, tiktokTitle, tiktokCaption, characters:[{id,name,description,file}], sources:[file],
               queueState QUEUED|PREPARING|READY|POSTING|POSTED|FAILED|null, scheduledAt, queueError, queueStep}
             Scene {id, narration (lời thoại), speaker, imagePrompt, mediaFile (hình/clip trong assets/), mediaSource,
               audioFile, audioDuration, duration, customDuration}
@@ -64,8 +64,8 @@ final class AssistantPrompts {
             - POST /api/projects/{id}/slides {withText?:true, ratio?:"3:4"|"1:1"|"video", coverTitle?, coverTeaser?} — xuất bộ ảnh lướt.
             - POST /api/projects/{id}/slides/cover {coverTitle?, coverTeaser?} — làm lại riêng ảnh bìa.
             TikTok
-            - POST /api/projects/{id}/tiktok/caption {} — Claude viết mô tả + hashtag (Job) → project.tiktokCaption.
-            - POST /api/projects/{id}/tiktok/studio-post {privacy:"SELF_ONLY"|"FRIENDS"|"PUBLIC", caption?, aiLabel?:true} \
+            - POST /api/projects/{id}/tiktok/caption {} — Claude viết tiêu đề + mô tả 2-3 câu + hashtag (Job) → project.tiktokTitle, project.tiktokCaption.
+            - POST /api/projects/{id}/tiktok/studio-post {privacy:"SELF_ONLY"|"FRIENDS"|"PUBLIC", title?, caption?, aiLabel?:true} \
               — đăng bộ ảnh lướt qua TikTok Studio (Job; cần xuất slides trước).
             - GET /api/tiktok/status — tài khoản TikTok API đã kết nối chưa.
             Danh sách bài đăng tự động (làm trọn gói: kịch bản → hình → ảnh lướt → đăng theo lịch)

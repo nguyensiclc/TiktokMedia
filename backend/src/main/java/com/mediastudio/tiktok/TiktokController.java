@@ -108,8 +108,8 @@ public class TiktokController {
                 if (s.narration != null && !s.narration.isBlank()) script.append(i + 1).append(". ").append(s.narration.trim()).append('\n');
             }
             String prompt = """
-                    Write a TikTok caption for this short video.
-                    Title: %s
+                    Write the TITLE and the CAPTION of a TikTok post for this short video / photo carousel.
+                    Project name: %s
                     Topic: %s
                     Narration:
                     %s
@@ -118,14 +118,18 @@ public class TiktokController {
 %s
                     Rules:
                     - Same language as the narration (Vietnamese if the narration is Vietnamese).
-                    - Line 1: a short hook (max ~80 characters) that makes people stop scrolling; may use 1-2 emoji.
-                    - Then 1-3 short lines that summarise the story / value without spoiling the ending.
-                    - A soft call to action (e.g. follow / comment).
-                    - Then 4-8 relevant hashtags: mix broad (e.g. #xuhuong #fyp) and specific ones for this topic;
+                    - TITLE: max 60 characters, no hashtags, at most 1 emoji. Punchy and specific: the most striking
+                      name / number / twist of the story, the kind of line that makes people stop scrolling
+                      (e.g. "17 tuổi cưỡi voi đánh giặc: Bà Triệu"). Not a copy of the project name.
+                    - CAPTION: EXACTLY 2-3 short sentences, about 200 characters in total, NOT more. Sentence 1 is a
+                      hook (a surprising true fact or a sharp question); sentence 2 builds curiosity without spoiling
+                      the ending; the optional sentence 3 is a short call to action (follow / comment). 1-2 emoji max.
+                      No bullet points, no lists, no long summaries.
+                    - HASHTAGS: 4-6 relevant tags: mix broad (e.g. #xuhuong #fyp) and specific ones for this topic;
                       no spaces inside hashtags, no misleading or unrelated tags.
-                    - Total under 2000 characters. Do not invent facts that are not in the video.
+                    - Do not invent facts that are not in the video.
                     Write ./tiktok-caption.json (overwrite) exactly as:
-                      {"caption": "<hook + lines + call to action, newline-separated>", "hashtags": ["#tag1", "#tag2"]}
+                      {"title": "<title>", "caption": "<the 2-3 sentences>", "hashtags": ["#tag1", "#tag2"]}
                     Write only that file.
                     """.formatted(p.name, nz(p.topic), script, blank(tone) ? "friendly, engaging" : tone, nz(extra),
                     "facts".equals(p.niche) ? "Niche: 'Did you know?' science / space facts. Hook with the most surprising fact as a question;"
@@ -146,8 +150,13 @@ public class TiktokController {
             }
             if (!tags.isEmpty()) caption.append("\n\n").append(String.join(" ", tags));
             String text = caption.length() > 2200 ? caption.substring(0, 2200) : caption.toString();
-            projects.mutate(id, pr -> pr.tiktokCaption = text);
-            ctx.log("✔ Mô tả (" + text.length() + " ký tự):\n" + text);
+            String t = j.path("title").asText("").replace('\n', ' ').trim();
+            String title = t.length() > 90 ? t.substring(0, 90).trim() : t;
+            projects.mutate(id, pr -> {
+                pr.tiktokCaption = text;
+                pr.tiktokTitle = title;
+            });
+            ctx.log("✔ Tiêu đề: " + title + "\n✔ Mô tả (" + text.length() + " ký tự):\n" + text);
         });
     }
 
@@ -156,7 +165,8 @@ public class TiktokController {
     /** Posts the exported swipe photos through TikTok Studio in the browser. Body: {privacy, caption?, aiLabel?} */
     @PostMapping("/projects/{id}/tiktok/studio-post")
     public Job studioPost(@PathVariable String id, @RequestBody Map<String, Object> body) {
-        return studio.post(id, str(body.get("privacy")), str(body.get("caption")), !Boolean.FALSE.equals(body.get("aiLabel")));
+        return studio.post(id, str(body.get("privacy")), str(body.get("caption")), str(body.get("title")),
+                !Boolean.FALSE.equals(body.get("aiLabel")), false);
     }
 
     // ---------------------------------------------------------------- publish

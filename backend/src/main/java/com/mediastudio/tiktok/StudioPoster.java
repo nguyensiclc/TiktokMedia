@@ -54,11 +54,18 @@ public class StudioPoster {
      * @param aiLabel turn on TikTok's "AI-generated content" label (the pictures are AI-made)
      */
     public Job post(String projectId, String privacy, String caption, boolean aiLabel) {
-        return post(projectId, privacy, caption, aiLabel, false);
+        return post(projectId, privacy, caption, null, aiLabel, false);
     }
 
-    /** @param draft true = click "Save draft" instead of Post: nothing is published, the post waits in Studio's drafts. */
     public Job post(String projectId, String privacy, String caption, boolean aiLabel, boolean draft) {
+        return post(projectId, privacy, caption, null, aiLabel, draft);
+    }
+
+    /**
+     * @param title post title; null = the project's TikTok title
+     * @param draft true = click "Save draft" instead of Post: nothing is published, the post waits in Studio's drafts.
+     */
+    public Job post(String projectId, String privacy, String caption, String title, boolean aiLabel, boolean draft) {
         Project p = projects.get(projectId);
         if (!PRIVACY.containsKey(privacy)) throw new IllegalArgumentException("Hãy chọn ai được xem bài đăng");
         if (p.slideFiles == null || p.slideFiles.isEmpty()) throw new IllegalArgumentException("Chưa có ảnh lướt — hãy Xuất danh sách ảnh trước");
@@ -68,6 +75,8 @@ public class StudioPoster {
         String text = caption != null ? caption.trim() : (p.tiktokCaption == null ? "" : p.tiktokCaption.trim());
         if (text.length() > 2200) text = text.substring(0, 2200);
         String finalText = text;
+        String t = (title != null ? title : (p.tiktokTitle == null ? "" : p.tiktokTitle)).replace('\n', ' ').trim();
+        String finalTitle = t.length() > 90 ? t.substring(0, 90).trim() : t;
         return jobs.start("tiktok-studio", "TikTok Studio: " + (draft ? "lưu nháp " : "đăng ") + Math.min(p.slideFiles.size(), MAX_PHOTOS) + " ảnh",
                 projectId, null, ctx -> {
             Path dir = projects.dir(projectId);
@@ -87,7 +96,8 @@ public class StudioPoster {
             Files.deleteIfExists(out);
             Path downloads = projects.folder(projectId, "downloads");
             Path cfg = mcp.writePlaywright(dir.resolve(".mcp-tiktok.json"), downloads);
-            claude.run(draft ? draftPrompt(prompt(paths, finalText, PRIVACY.get(privacy), aiLabel)) : prompt(paths, finalText, PRIVACY.get(privacy), aiLabel),
+            String steps = prompt(paths, finalTitle, finalText, PRIVACY.get(privacy), aiLabel);
+            claude.run(draft ? draftPrompt(steps) : steps,
                     "You operate TikTok Studio in a browser for the account owner, who asked for this post and approved"
                             + " every step described. Work autonomously; never ask questions. Never solve captchas or"
                             + " security checks.", dir, cfg, List.of("mcp__playwright", "Write"), ctx);
@@ -143,7 +153,7 @@ public class StudioPoster {
                 .replaceFirst("Publish a PHOTO post", "Prepare a PHOTO post and SAVE IT AS A DRAFT (do NOT publish)");
     }
 
-    static String prompt(List<String> files, String caption, String privacyLabel, boolean aiLabel) {
+    static String prompt(List<String> files, String title, String caption, String privacyLabel, boolean aiLabel) {
         StringBuilder list = new StringBuilder();
         for (int i = 0; i < files.size(); i++) list.append("  ").append(i + 1).append(". ").append(files.get(i)).append('\n');
         return """
@@ -152,6 +162,10 @@ public class StudioPoster {
 
                 PHOTOS (%d files, upload ALL of them, in exactly this order; the first one is the cover):
                 %s
+                TITLE (type it exactly; empty = leave the title empty):
+                <<<
+                %s
+                >>>
                 CAPTION (type it exactly, keep the line breaks; empty = leave the description empty):
                 <<<
                 %s
@@ -168,7 +182,10 @@ public class StudioPoster {
                    accepted, use the page's add-more ("+" / "Thêm") control to add the missing ones, keeping the order.
                 3. Wait (browser_wait_for, up to 3 minutes in total) until all %d photos are shown in the editor. Count them.
                    If the count is wrong or the first photo is not the cover, fix it (remove and re-add) before going on.
-                4. Description: click the description / caption editor, select everything (ControlOrMeta+A) and delete it,
+                4. Title: photo posts have a separate one-line title field ("Add a title" / "Thêm tiêu đề" / "Tiêu đề",
+                   above the description). If the TITLE is not empty, click it, clear it and type the title. If the page
+                   has no title field, skip this and go on.
+                   Description: click the description / caption editor, select everything (ControlOrMeta+A) and delete it,
                    then type the caption. Type it line by line, pressing Enter between lines (two Enters for an empty line).
                    When a hashtag or mention suggestion list pops up, do NOT pick a suggestion: press Escape and go on, so
                    the text stays exactly as given. Check the editor text afterwards.
@@ -192,7 +209,7 @@ public class StudioPoster {
                    {"status": "POSTED" | "NEED_LOGIN" | "BLOCKED" | "FAILED", "message": "<one short sentence, in Vietnamese>"}
                 Never click Post more than once. Do not log out, do not change account settings, do not delete anything.
                 Keep your final message short.
-                """.formatted(files.size(), list, caption, privacyLabel, files.size(), privacyLabel,
+                """.formatted(files.size(), list, title, caption, privacyLabel, files.size(), privacyLabel,
                 aiLabel ? "\"AI-generated content\" / \"Nội dung do AI tạo\": turn it ON (the pictures are AI-generated)."
                         : "\"AI-generated content\" / \"Nội dung do AI tạo\": leave it as it is.",
                 privacyLabel, RESULT);

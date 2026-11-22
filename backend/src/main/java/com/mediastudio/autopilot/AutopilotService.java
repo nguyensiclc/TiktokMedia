@@ -97,8 +97,9 @@ public class AutopilotService {
         } else {
             ctx.log("  ✔ Danh sách ảnh: đã có");
         }
-        String cap = projects.get(id).tiktokCaption;
-        if (cap == null || cap.isBlank()) {
+        // No title yet = written before titles existed (long caption): write both again.
+        Project pc = projects.get(id);
+        if (pc.tiktokCaption == null || pc.tiktokCaption.isBlank() || pc.tiktokTitle == null || pc.tiktokTitle.isBlank()) {
             step(id, ctx, "Viết caption", () -> tiktok.caption(id, Map.of()));
         } else {
             ctx.log("  ✔ Caption: đã có");
