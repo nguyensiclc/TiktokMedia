@@ -204,6 +204,7 @@ async function save() {
     project.value.slidesMusic = fresh.slidesMusic
     project.value.coverTitle = fresh.coverTitle
     project.value.coverTeaser = fresh.coverTeaser
+    project.value.coverStyle = fresh.coverStyle
     for (const s of project.value.scenes) {
       const f = fresh.scenes.find((x) => x.id === s.id)
       if (f) Object.assign(s, { mediaFile: f.mediaFile, mediaSource: f.mediaSource, audioFile: f.audioFile, audioDuration: f.audioDuration, canvaMediaId: f.canvaMediaId, canvaDesignId: f.canvaDesignId })

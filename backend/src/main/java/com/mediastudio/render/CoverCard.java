@@ -21,7 +21,7 @@ import java.util.Map;
 final class CoverCard {
     private CoverCard() {}
 
-    private static final String[] TITLE_FONTS = {"Segoe UI Black", "Arial Black", "Segoe UI", "Arial", "SansSerif"};
+    static final String[] TITLE_FONTS = {"Segoe UI Black", "Arial Black", "Segoe UI", "Arial", "SansSerif"};
 
     static BufferedImage render(BufferedImage src, String title, String teaser, String kicker, boolean facts, int w, int h) {
         System.setProperty("java.awt.headless", "true");
@@ -194,15 +194,15 @@ final class CoverCard {
         return out;
     }
 
-    private static String nfc(String s) {
+    static String nfc(String s) {
         return s == null ? "" : Normalizer.normalize(s.trim(), Normalizer.Form.NFC);
     }
 
-    private static Color withAlpha(Color c, int a) {
+    static Color withAlpha(Color c, int a) {
         return new Color(c.getRed(), c.getGreen(), c.getBlue(), a);
     }
 
-    private static Font font(String[] names, int style, float size, String text) {
+    static Font font(String[] names, int style, float size, String text) {
         for (String n : names) {
             Font f = new Font(n, style, 40);
             if ((f.getFamily().equalsIgnoreCase(n) || "SansSerif".equals(n)) && f.canDisplayUpTo(text) == -1) {
@@ -212,12 +212,12 @@ final class CoverCard {
         return new Font(Font.SANS_SERIF, style, Math.round(size)).deriveFont(size);
     }
 
-    private static double width(Font f, String s) {
+    static double width(Font f, String s) {
         return f.createGlyphVector(new FontRenderContext(null, true, true), s).getLogicalBounds().getWidth();
     }
 
     /** Word wrap that evens out line lengths (no short last line), for titles and teasers. */
-    private static List<String> balancedWrap(String text, Font font, FontRenderContext frc, double maxW) {
+    static List<String> balancedWrap(String text, Font font, FontRenderContext frc, double maxW) {
         String[] words = text.split("\\s+");
         List<String> greedy = ScriptOverlay.wrap(text, font, frc, maxW);
         int n = greedy.size();

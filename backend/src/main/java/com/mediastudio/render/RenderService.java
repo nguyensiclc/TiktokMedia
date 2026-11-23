@@ -65,6 +65,13 @@ public class RenderService {
         return jobs.start("slides", "Xuất ảnh lướt", projectId, null, ctx -> doSlides(projectId, withText, ctx));
     }
 
+    /** Cover layout for the next cover render: null = keep, "" = auto, else one of {@link CoverStyles#IDS}. */
+    public void saveCoverStyle(String projectId, String style) {
+        if (style == null) return;
+        String s = style.trim().toLowerCase(java.util.Locale.ROOT);
+        projects.mutate(projectId, pr -> pr.coverStyle = CoverStyles.IDS.contains(s) ? s : "");
+    }
+
     private void saveCoverText(String projectId, String coverTitle, String coverTeaser) {
         if (coverTitle == null && coverTeaser == null) return;
         projects.mutate(projectId, pr -> {
@@ -126,10 +133,11 @@ public class RenderService {
         ffmpeg.run(List.of("-i", coverMedia.toString(), "-frames:v", "1", "-vf", "scale=" + w + ":" + h
                 + ":force_original_aspect_ratio=increase,crop=" + w + ":" + h + ",setsar=1", "-update", "1", "-y", src.toString()), tmp, ctx);
         boolean facts = "facts".equals(p.niche);
-        BufferedImage cover = CoverCard.render(ImageIO.read(src.toFile()), p.coverTitle, p.coverTeaser,
+        String style = CoverStyles.pick(p.coverStyle, p.id, p.coverTitle, p.coverTeaser);
+        BufferedImage cover = CoverStyles.render(style, ImageIO.read(src.toFile()), p.coverTitle, p.coverTeaser,
                 facts ? "BẠN CÓ BIẾT?" : "history".equals(p.niche) ? "CHUYỆN LỊCH SỬ" : "TRUYỆN CỔ TÍCH", facts, w, h);
         writeJpg(cover, dest);
-        ctx.log("▶ Trang bìa: " + p.coverTitle + " — " + p.coverTeaser);
+        ctx.log("▶ Trang bìa (kiểu " + style + "): " + p.coverTitle + " — " + p.coverTeaser);
         return true;
     }
 

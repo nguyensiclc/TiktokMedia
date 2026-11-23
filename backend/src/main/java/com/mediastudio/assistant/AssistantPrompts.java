@@ -61,8 +61,9 @@ final class AssistantPrompts {
             - GET /api/flow-api/health — dịch vụ Flow có chạy không.
             Xuất (Job)
             - POST /api/projects/{id}/render — xuất video MP4 (chữ script trên hình + nhạc nền nếu có) → project.lastRender.
-            - POST /api/projects/{id}/slides {withText?:true, ratio?:"3:4"|"1:1"|"video", coverTitle?, coverTeaser?} — xuất bộ ảnh lướt.
-            - POST /api/projects/{id}/slides/cover {coverTitle?, coverTeaser?} — làm lại riêng ảnh bìa.
+            - POST /api/projects/{id}/slides {withText?:true, ratio?:"3:4"|"1:1"|"video", coverTitle?, coverTeaser?, coverStyle?} — xuất bộ ảnh lướt.
+              coverStyle: ""(tự động, mỗi dự án một kiểu)|"classic"|"year"(năm to, cần năm trong tiêu đề)|"banner"|"cinema"|"impact".
+            - POST /api/projects/{id}/slides/cover {coverTitle?, coverTeaser?, coverStyle?} — làm lại riêng ảnh bìa (đổi kiểu bìa).
             TikTok
             - POST /api/projects/{id}/tiktok/caption {} — Claude viết tiêu đề + mô tả 2-3 câu + hashtag (Job) → project.tiktokTitle, project.tiktokCaption.
             - POST /api/projects/{id}/tiktok/studio-post {privacy:"SELF_ONLY"|"FRIENDS"|"PUBLIC", title?, caption?, aiLabel?:true, draft?:bool} \

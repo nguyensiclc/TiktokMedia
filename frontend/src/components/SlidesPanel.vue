@@ -52,6 +52,16 @@ const withText = ref(true)
 // Cover slide text (first picture). Empty = Claude writes it when exporting.
 const coverTitle = ref(props.project.coverTitle || '')
 const coverTeaser = ref(props.project.coverTeaser || '')
+// Cover layout; "" = auto (each project gets a different one, so the profile grid does not look the same).
+const COVER_STYLES = [
+  { id: "", label: "Tự động" },
+  { id: "classic", label: "Cổ điển" },
+  { id: "year", label: "Năm nổi bật" },
+  { id: "banner", label: "Nhãn báo" },
+  { id: "cinema", label: "Điện ảnh" },
+  { id: "impact", label: "Đậm nét" },
+]
+const coverStyle = ref(props.project.coverStyle || "")
 watch(() => [props.project.coverTitle, props.project.coverTeaser], ([t, te]) => {
   coverTitle.value = t || ''
   coverTeaser.value = te || ''
@@ -65,10 +75,10 @@ const RATIOS = [
 const ratio = ref(props.project.slideRatio || '3:4')
 const ratioHint = computed(() => (RATIOS.find((r) => r.id === ratio.value) || RATIOS[0]).hint)
 function remakeCover() {
-  emit('cover', { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value })
+  emit("cover", { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value, coverStyle: coverStyle.value })
 }
 function make() {
-  emit('make', withText.value, { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value, ratio: ratio.value })
+  emit('make', withText.value, { coverTitle: coverTitle.value, coverTeaser: coverTeaser.value, coverStyle: coverStyle.value, ratio: ratio.value })
 }
 const strip = ref(null)
 const cur = ref(0)
@@ -119,6 +129,15 @@ function go(d) {
       <div class="muted small"><Icon name="sparkles" /> Trang bìa (ảnh đầu tiên). Để trống thì Claude tự viết khi xuất.</div>
       <input v-model="coverTitle" placeholder="Tên truyện, VD: Sự tích trầu cau" maxlength="80" />
       <input v-model="coverTeaser" placeholder="Câu gợi tò mò, VD: Vì sao người em hoá thành tảng đá bên suối?" maxlength="140" />
+      <div class="ratio">
+        <span class="muted small" id="cover-style-lbl">Kiểu ảnh bìa</span>
+        <div class="seg" role="radiogroup" aria-labelledby="cover-style-lbl">
+          <label v-for="c in COVER_STYLES" :key="c.id" :class="{ on: coverStyle === c.id }">
+            <input v-model="coverStyle" type="radio" name="cover-style" :value="c.id" /> {{ c.label }}
+          </label>
+        </div>
+      </div>
+      <div v-if="coverStyle === 'year'" class="muted small">"Năm nổi bật" cần tiêu đề có năm (VD 1786); không có năm thì dùng kiểu "Đậm nét".</div>
       <button v-if="(project.slideFiles || []).length" class="small" :disabled="busy" @click="remakeCover"
               title="Chỉ làm lại ảnh bìa, giữ nguyên các ảnh cảnh đã xuất">
         <Icon name="sparkles" /> Tạo lại riêng ảnh bìa
@@ -201,7 +220,7 @@ function go(d) {
 .warn { color: var(--warn); }
 .ratio { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
 .ratio .hint { flex-basis: 100%; margin: 0; }
-.seg { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--fill); }
+.seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: 8px; background: var(--fill); }
 .seg label { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 .seg label.on { background: var(--panel); box-shadow: 0 1px 2px rgba(0, 0, 0, .14), 0 0 0 .5px rgba(0, 0, 0, .06); font-weight: 600; }
 .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
