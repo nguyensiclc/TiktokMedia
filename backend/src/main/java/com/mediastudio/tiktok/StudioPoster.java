@@ -187,8 +187,15 @@ public class StudioPoster {
                    has no title field, skip this and go on.
                    Description: click the description / caption editor, select everything (ControlOrMeta+A) and delete it,
                    then type the caption. Type it line by line, pressing Enter between lines (two Enters for an empty line).
-                   When a hashtag or mention suggestion list pops up, do NOT pick a suggestion: press Escape and go on, so
-                   the text stays exactly as given. Check the editor text afterwards.
+                   Plain words: when a mention ("@") suggestion list pops up, press Escape and go on.
+                   HASHTAGS must become real tags, or TikTok treats them as plain text: a typed "#tag" stays plain until it
+                   is picked from the suggestion list (a real tag is shown bold / as its own element). For EACH hashtag:
+                   type it ("#" + the word, no space after it), wait about 1 s for the suggestion list, then click the
+                   suggestion whose text is exactly that hashtag (same spelling, not a longer one like #hocsuaxe for
+                   #hocsu). If no suggestion matches exactly, press Escape and keep it as typed. After picking, type ONE
+                   space before the next hashtag only if the editor did not add one itself (never two spaces).
+                   Check the editor afterwards (snapshot): the text matches the caption, and each hashtag that had an
+                   exact suggestion is its own bold tag element.
                 5. Settings (open "Show more" / "Hiển thị thêm" if needed):
                    - "Who can view this post" / "Ai có thể xem": choose %s.
                    - %s

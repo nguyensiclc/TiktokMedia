@@ -162,11 +162,11 @@ public class TiktokController {
 
     // ---------------------------------------------------------------- TikTok Studio (browser, no API)
 
-    /** Posts the exported swipe photos through TikTok Studio in the browser. Body: {privacy, caption?, aiLabel?} */
+    /** Posts the exported swipe photos through TikTok Studio in the browser. Body: {privacy, caption?, aiLabel?, title?, draft?}: draft = "Save draft" instead of Post */
     @PostMapping("/projects/{id}/tiktok/studio-post")
     public Job studioPost(@PathVariable String id, @RequestBody Map<String, Object> body) {
         return studio.post(id, str(body.get("privacy")), str(body.get("caption")), str(body.get("title")),
-                !Boolean.FALSE.equals(body.get("aiLabel")), false);
+                !Boolean.FALSE.equals(body.get("aiLabel")), Boolean.TRUE.equals(body.get("draft")));
     }
 
     // ---------------------------------------------------------------- publish

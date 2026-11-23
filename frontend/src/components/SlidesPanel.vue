@@ -15,6 +15,8 @@ const VIEW = [
 ]
 const privacy = ref('SELF_ONLY')
 const aiLabel = ref(true)
+// Draft = Studio keeps the post unpublished, so music can still be added when opening it (a posted one cannot change its sound).
+const draft = ref(true)
 const caption = ref(props.project.tiktokCaption || '')
 watch(() => props.project.tiktokCaption, (c) => { if (c) caption.value = c })
 const title = ref(props.project.tiktokTitle || '')
@@ -31,13 +33,19 @@ async function openLogin() {
 async function studio() {
   const n = Math.min(files.value.length, 35)
   const who = VIEW.find((v) => v.id === privacy.value).label
-  const ok = await ask({
+  const ok = await ask(draft.value ? {
+    title: `Lưu ${n} ảnh vào nháp TikTok?`,
+    message: `Media Studio sẽ mở TikTok Studio trong Chrome, tải ${n} ảnh lên, điền tiêu đề, caption rồi bấm "Lưu bản nháp" (chưa đăng). `
+      + "Sau đó mở Bản nháp trong TikTok Studio để thêm nhạc và đăng.",
+    confirmLabel: "Lưu nháp", icon: "send",
+  } : {
     title: `Đăng ${n} ảnh lên TikTok?`,
     message: `Media Studio sẽ mở TikTok Studio trong Chrome, tải ${n} ảnh lên, điền caption và bấm Đăng với chế độ "${who}".`
-      + (privacy.value === 'PUBLIC' ? ' Bài sẽ hiện công khai ngay.' : ''),
-    confirmLabel: 'Đăng', icon: 'send',
+      + (privacy.value === "PUBLIC" ? " Bài sẽ hiện công khai ngay." : "")
+      + " Bài đã đăng thì không đổi được nhạc nữa.",
+    confirmLabel: "Đăng", icon: "send",
   })
-  if (ok) emit('studio', { privacy: privacy.value, title: title.value, caption: caption.value, aiLabel: aiLabel.value })
+  if (ok) emit("studio", { privacy: privacy.value, title: title.value, caption: caption.value, aiLabel: aiLabel.value, draft: draft.value })
 }
 
 const withText = ref(true)
@@ -171,8 +179,9 @@ function go(d) {
           </div>
         </div>
         <label class="row chk"><input v-model="aiLabel" type="checkbox" /> Gắn nhãn "Nội dung do AI tạo" (ảnh do AI vẽ)</label>
+        <label class="row chk"><input v-model="draft" type="checkbox" /> Chỉ lưu nháp (chưa đăng): mở Bản nháp trong TikTok Studio để thêm nhạc rồi tự đăng</label>
         <button class="primary wide" style="margin-top:8px" :disabled="busy" @click="studio">
-          <Icon name="send" /> Đăng {{ Math.min(files.length, 35) }} ảnh lên TikTok
+          <Icon name="send" /> {{ draft ? "Lưu nháp" : "Đăng" }} {{ Math.min(files.length, 35) }} ảnh lên TikTok
         </button>
       </div>
       <div class="muted small">Bấm một ảnh để tải riêng. Thứ tự 1, 2, 3… là thứ tự nên chọn khi đăng. Tải về máy tính rồi upload lên TikTok Studio, hoặc chuyển sang điện thoại.</div>
