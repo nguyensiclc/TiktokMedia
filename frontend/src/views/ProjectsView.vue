@@ -149,7 +149,7 @@ async function removeFromQueue(p) {
   if (ok) act(p, { action: 'remove' })
 }
 async function remove(p) {
-  if (!(await ask({ title: `Xoá dự án "${p.name}"?`, message: 'Toàn bộ cảnh, hình, giọng đọc và video đã xuất của dự án sẽ bị xoá. Không hoàn tác được.', confirmLabel: 'Xoá dự án', danger: true }))) return
+  if (!(await ask({ title: `Xoá dự án "${p.name}"?`, message: 'Toàn bộ cảnh, hình, video và ảnh đã xuất của dự án sẽ bị xoá. Không hoàn tác được.', confirmLabel: 'Xoá dự án', danger: true }))) return
   if (working(p)) await api.post(`/api/queue/projects/${p.id}`, { action: 'remove' })
   await api.deleteProject(p.id)
   load()

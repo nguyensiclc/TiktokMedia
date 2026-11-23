@@ -10,7 +10,6 @@ const props = defineProps({
   version: String,
   busy: Boolean,
   isRef: Boolean,
-  scriptMode: Boolean,
   /** Drama: cast names a line can be given to; null = not a drama (no speaker field). */
   cast: Array
 })
@@ -19,10 +18,9 @@ function setSpeaker(v) {
   props.scene.speaker = v || null
   emit('change')
 }
-const emit = defineEmits(['change', 'remove', 'move', 'flow', 'gemini', 'canva', 'voice', 'upload', 'clear', 'ref'])
+const emit = defineEmits(['change', 'remove', 'move', 'flow', 'gemini', 'canva', 'upload', 'clear', 'ref'])
 
 const mediaUrl = computed(() => props.scene.mediaFile && fileUrl(props.projectId, 'assets', props.scene.mediaFile, props.version))
-const audioUrl = computed(() => props.scene.audioFile && fileUrl(props.projectId, 'assets', props.scene.audioFile, props.version))
 
 function pick(kind, accept) {
   const input = document.createElement('input')
@@ -69,7 +67,7 @@ const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upl
         </select>
       </div>
       <div class="field">
-        <label>{{ scriptMode ? 'Lời script (hiện trên hình cho người đọc)' : screenText ? 'Chữ hiện trên màn hình (không đọc)' : 'Lời thoại (giọng đọc)' }}</label>
+        <label>Lời script (hiện trên hình cho người đọc)</label>
         <textarea v-model="scene.narration" rows="2" @input="emit('change')" />
       </div>
       <div class="field">
@@ -87,21 +85,9 @@ const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upl
         <button v-if="scene.canvaMediaId && !isRef" class="small" @click="emit('ref')"><Icon name="star" /> Làm tham chiếu</button>
       </div>
 
-      <div v-if="scriptMode" class="row actions">
+      <div class="row actions">
         <span class="muted">⏱ {{ words }} từ → {{ shown.toFixed(1) }}s (3 từ mỗi giây, tối thiểu 2s)</span>
         <span v-if="!isLast && words" class="muted">· chữ kết thúc bằng "..."</span>
-      </div>
-      <div v-else class="row actions">
-        <button v-if="!screenText" class="small" :disabled="busy || !scene.narration" @click="emit('voice')"><Icon name="mic" /> Tạo giọng</button>
-        <button class="small" @click="pick('audio', 'audio/*')">⬆ Audio</button>
-        <audio v-if="audioUrl" :src="audioUrl" controls class="grow" />
-        <span v-if="scene.audioDuration" class="muted">{{ scene.audioDuration.toFixed(1) }}s</span>
-        <button v-if="scene.audioFile" class="small" @click="emit('clear', 'audio')">Bỏ audio</button>
-        <template v-if="!scene.audioFile">
-          <span class="muted">Thời lượng</span>
-          <input v-model.number="scene.duration" type="number" min="1" step="0.5" class="dur" @input="emit('change')" />
-          <span class="muted">s</span>
-        </template>
       </div>
     </div>
   </div>

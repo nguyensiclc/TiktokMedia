@@ -123,7 +123,9 @@ public class ProjectService {
 
     private Project read(Path f) {
         try {
-            return mapper.readValue(f.toFile(), Project.class);
+            Project p = mapper.readValue(f.toFile(), Project.class);
+            p.scriptMode = true; // voice-over was removed: every project shows its script on the pictures
+            return p;
         } catch (IOException e) {
             return null;
         }

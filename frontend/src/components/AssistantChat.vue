@@ -28,7 +28,7 @@ const busy = computed(() => !!jobId.value)
 const examples = [
   'Làm video lịch sử về trận Bạch Đằng năm 938',
   'Dự án này còn cảnh nào chưa có hình?',
-  'Tạo giọng đọc rồi xuất video cho dự án này',
+  'Xuất danh sách ảnh 3:4 cho dự án này',
   'Lên lịch đăng 3 truyện cổ tích, mỗi ngày 1 bài lúc 20h',
 ]
 
@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
 
     <div ref="list" class="msgs" aria-live="polite">
       <div v-if="!messages.length" class="empty">
-        <p>Chào bạn! Hãy nói mình muốn làm gì, trợ lý sẽ tự điều khiển app: tạo dự án, viết kịch bản, tạo hình, giọng đọc, xuất video và đăng TikTok.</p>
+        <p>Chào bạn! Hãy nói mình muốn làm gì, trợ lý sẽ tự điều khiển app: tạo dự án, viết kịch bản, tạo hình, xuất video / danh sách ảnh và đăng TikTok.</p>
         <button v-for="ex in examples" :key="ex" class="ex" @click="send(ex)">{{ ex }}</button>
       </div>
       <div v-for="(m, i) in messages" :key="i" class="msg" :class="[m.role, { err: m.error }]">

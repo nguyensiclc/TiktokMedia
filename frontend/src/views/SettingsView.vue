@@ -3,7 +3,6 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '../api'
 import { ask } from '../confirm'
 import JobLog from '../components/JobLog.vue'
-import VoicePicker from '../components/VoicePicker.vue'
 
 const flow = ref(null)
 const checkJob = ref(null)
@@ -67,20 +66,7 @@ async function copy(text) {
 
 onBeforeUnmount(() => clearInterval(ttTimer))
 
-const vieneuJob = ref(null)
-async function startVieneu() {
-  error.value = ''
-  try {
-    await save()
-    vieneuJob.value = (await api.post('/api/voice/vieneu/start')).id
-  } catch (e) {
-    error.value = e.message
-  }
-}
-
 const s = ref(null)
-const profiles = ref([])
-const profileError = ref('')
 const checks = ref([])
 const msg = ref('')
 const error = ref('')
@@ -88,18 +74,7 @@ const checking = ref(false)
 
 async function load() {
   s.value = await api.settings()
-  loadProfiles()
   runCheck()
-}
-
-async function loadProfiles() {
-  try {
-    profiles.value = await api.voiceProfiles()
-    profileError.value = ''
-  } catch (e) {
-    profiles.value = []
-    profileError.value = e.message
-  }
 }
 
 async function runCheck() {
@@ -142,7 +117,6 @@ async function save() {
     s.value = await api.saveSettings(s.value)
     msg.value = 'Đã lưu cài đặt'
     setTimeout(() => (msg.value = ''), 2000)
-    loadProfiles()
   } catch (e) {
     error.value = e.message
   }
@@ -278,11 +252,6 @@ onMounted(() => {
           <label class="row chk"><input v-model="s.enableCanva" type="checkbox" /> <strong>Canva</strong> (remote MCP, OAuth)</label>
           <div class="field"><label>Canva MCP URL</label><input v-model="s.canvaMcpUrl" /></div>
           <button @click="call(api.mcpLogin)"><Icon name="key" /> Mở Claude CLI để đăng nhập (/mcp)</button>
-
-          <template v-if="s.voiceProvider === 'voicebox'">
-            <label class="row chk" style="margin-top:20px"><input v-model="s.enableVoiceboxMcp" type="checkbox" /> <strong>Voicebox MCP</strong> (cho lệnh tự do)</label>
-            <p class="muted small">Tạo giọng cho cảnh dùng REST API trực tiếp, không cần MCP.</p>
-          </template>
         </div>
       </div>
     </div>
@@ -341,93 +310,6 @@ onMounted(() => {
       </div>
       <div v-if="ttWaiting" class="muted small" style="margin-top:6px">
         Trình duyệt đã mở trang TikTok. Đăng nhập và bấm Đồng ý, trang này sẽ tự cập nhật.
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="row">
-        <h2 class="grow">Giọng đọc</h2>
-        <select v-model="s.voiceProvider" style="width:240px" @change="save">
-          <option value="vieneu">VieNeu-TTS (tiếng Việt)</option>
-          <option value="voicebox">Voicebox</option>
-        </select>
-      </div>
-
-      <div class="field speed">
-        <label>
-          Tốc độ đọc: <strong>×{{ Number(s.voiceSpeed || 1).toFixed(2) }}</strong>
-          <span class="muted small">
-            ({{ (s.voiceSpeed || 1) < 0.97 ? 'chậm hơn, hợp đọc thơ' : (s.voiceSpeed || 1) > 1.03 ? 'nhanh hơn' : 'bình thường' }})
-          </span>
-        </label>
-        <div class="row">
-          <span class="muted small">0.5</span>
-          <input v-model.number="s.voiceSpeed" class="grow" type="range" min="0.5" max="1.5" step="0.05" @change="save" />
-          <span class="muted small">1.5</span>
-          <button class="small" :disabled="(s.voiceSpeed || 1) === 1" @click="s.voiceSpeed = 1; save()">Đặt lại</button>
-        </div>
-        <p class="muted small" style="margin:4px 0 0">
-          Mặc định cho các dự án chưa cài riêng; mỗi dự án đổi được giọng và tốc độ ở khung "Giọng đọc của dự án". Giữ nguyên cao độ giọng.
-        </p>
-      </div>
-
-      <template v-if="s.voiceProvider !== 'voicebox'">
-        <div class="grid2">
-          <div class="field">
-            <label>python.exe của venv đã cài <code>vieneu</code></label>
-            <input v-model="s.vieneuPython" placeholder="D:\...\.venv-vieneu\Scripts\python.exe" />
-          </div>
-          <div class="field"><label>VieNeu server URL</label><input v-model="s.vieneuUrl" /></div>
-          <div class="field">
-            <label>Thiết bị</label>
-            <select v-model="s.vieneuDevice">
-              <option value="auto">Tự động (GPU nếu có)</option><option value="cpu">CPU</option><option value="cuda">CUDA</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <label class="row chk" style="margin:0"><input v-model="s.vieneuAutoStart" type="checkbox" /> Tự khởi động server khi cần</label>
-          <span class="grow" />
-          <button @click="startVieneu"><Icon name="play" /> Khởi động VieNeu</button>
-        </div>
-        <div v-if="vieneuJob" style="margin-top:10px"><JobLog :job-id="vieneuJob" @done="loadProfiles" /></div>
-
-        <div class="field" style="margin-top:14px">
-          <div class="row">
-            <label class="grow" style="margin:0">Giọng đọc mặc định cho video: nghe thử và chọn</label>
-            <button class="small" @click="loadProfiles">↻ Tải lại danh sách</button>
-          </div>
-          <div v-if="profileError" class="muted small" style="margin:6px 0">
-            {{ profileError }}. Bấm "Khởi động VieNeu" ở trên rồi đợi khoảng 20 giây.
-          </div>
-          <VoicePicker v-else :model-value="s.vieneuVoice" :voices="profiles" :speed="s.voiceSpeed || 1"
-                       :default-option="{ id: '', name: 'Mặc định (Hải Đăng)', gender: 'male' }"
-                       @update:model-value="(v) => { s.vieneuVoice = v; save() }" />
-        </div>
-      </template>
-
-      <div v-else class="grid2">
-        <div class="field"><label>Voicebox URL</label><input v-model="s.voiceboxUrl" /></div>
-        <div class="field" style="grid-column: 1 / -1">
-          <div class="row">
-            <label class="grow" style="margin:0">Voice profile mặc định: nghe thử và chọn</label>
-            <button class="small" @click="loadProfiles">↻ Tải lại danh sách</button>
-          </div>
-          <div v-if="profileError" class="muted small" style="margin:6px 0">{{ profileError }}</div>
-          <VoicePicker v-else :model-value="s.voiceProfileId" :voices="profiles" :speed="s.voiceSpeed || 1"
-                       @update:model-value="(v) => { s.voiceProfileId = v; save() }" />
-        </div>
-        <div class="field">
-          <label>Ngôn ngữ (mã Voicebox: en, ja, ko, zh, fr, de, es…)</label>
-          <input v-model="s.voiceLanguage" />
-        </div>
-        <div class="field">
-          <label>Kích thước model (lần đầu Voicebox sẽ tự tải model)</label>
-          <select v-model="s.voiceModelSize">
-            <option value="">Mặc định của Voicebox</option>
-            <option>1.7B</option><option>0.6B</option><option>1B</option><option>3B</option>
-          </select>
-        </div>
       </div>
     </div>
 

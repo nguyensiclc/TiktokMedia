@@ -85,8 +85,9 @@ public class Project {
     /**
      * true = "script" mode: no audio is made or used; each scene's narration is drawn on the picture
      * (in its calmest area, colours taken from the image) for a person to read aloud.
+     * Always true now: voice-over was removed from the app (old projects are switched when loaded).
      */
-    public boolean scriptMode = false;
+    public boolean scriptMode = true;
     /** Background music (no vocals) file inside assets/, looped under the whole video; null = none. */
     public String musicFile;
     /** Music level 0.0–1.0 relative to the voice. */

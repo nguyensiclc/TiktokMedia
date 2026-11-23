@@ -2,18 +2,13 @@
 import { ref, computed } from 'vue'
 import { api, fileUrl } from '../api'
 
-/** Narration mode (voice vs on-screen script) and the background music of one project. */
+/** Background music of one project (the words are always shown on the pictures, no voice). */
 const props = defineProps({ project: Object, version: String })
 const emit = defineEmits(['changed', 'error', 'music'])
 
 const busy = ref(false)
 const musicUrl = computed(() => props.project.musicFile && fileUrl(props.project.id, 'assets', props.project.musicFile, props.version))
 const volume = computed(() => props.project.musicVolume ?? 0.25)
-
-function setMode(script) {
-  props.project.scriptMode = script
-  emit('changed')
-}
 
 function setVolume(e) {
   props.project.musicVolume = Number(e.target.value)
@@ -75,22 +70,10 @@ async function remove() {
 
 <template>
   <div class="panel">
-    <h3 style="margin:0 0 8px"><Icon name="sliders" />Lời & nhạc nền</h3>
+    <h3 style="margin:0 0 8px"><Icon name="sliders" />Nhạc nền</h3>
+    <p class="muted small" style="margin:0 0 8px">Lời script hiện ngay trên hình, mỗi cảnh hiện 3 từ mỗi giây và kết thúc bằng "..." (trừ cảnh cuối).</p>
 
-    <div class="modes">
-      <label class="mode" :class="{ on: !project.scriptMode }">
-        <input type="radio" :checked="!project.scriptMode" @change="setMode(false)" />
-        <span><strong class="ih"><Icon name="mic" /> Giọng đọc</strong><br /><span class="muted small">Tạo audio từ lời thoại, phụ đề .srt kèm theo</span></span>
-      </label>
-      <label class="mode" :class="{ on: project.scriptMode }">
-        <input type="radio" :checked="project.scriptMode" @change="setMode(true)" />
-        <span><strong class="ih"><Icon name="file" /> Script cho người đọc</strong><br />
-          <span class="muted small">Không tạo audio. Lời hiện ngay trên hình, ở vùng ít chi tiết nhất; mỗi cảnh hiện 3 từ mỗi giây
-            và kết thúc bằng "..." (trừ cảnh cuối) để người đọc biết còn tiếp.</span></span>
-      </label>
-    </div>
-
-    <div class="field" style="margin-top:12px">
+    <div class="field">
       <label>Nhạc nền (không lời, phát suốt video, tự lặp và nhỏ dần ở cuối)</label>
       <div class="row">
         <button class="small" :disabled="busy" @click="pick">{{ project.musicFile ? '⬆ Đổi nhạc' : '⬆ Chọn file nhạc' }}</button>
@@ -110,20 +93,13 @@ async function remove() {
       </div>
     </div>
     <div v-if="project.musicFile" class="field">
-      <label>Âm lượng nhạc: <strong>{{ Math.round(volume * 100) }}%</strong>
-        <span v-if="!project.scriptMode" class="muted small">(tự nhỏ lại khi có giọng đọc)</span></label>
+      <label>Âm lượng nhạc: <strong>{{ Math.round(volume * 100) }}%</strong></label>
       <input type="range" min="0" max="1" step="0.05" :value="volume" @input="setVolume" />
     </div>
   </div>
 </template>
 
 <style scoped>
-.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.mode { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--border);
-        border-radius: 8px; cursor: pointer; margin: 0; color: var(--text); }
-.mode.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.mode input { width: auto; margin-top: 3px; }
 audio { height: 30px; min-width: 160px; }
 .small { font-size: 12px; }
-@media (max-width: 700px) { .modes { grid-template-columns: 1fr; } }
 </style>

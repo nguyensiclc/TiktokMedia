@@ -91,7 +91,7 @@ const canRun = computed(() => !!props.project.sources?.length || !!note.value.tr
 
 async function analyze(storyboard) {
   if (storyboard && props.project.scenes.some((s) => s.mediaFile || s.audioFile) &&
-      !(await ask({ title: 'Thay kịch bản hiện tại?', message: 'Kịch bản mới sẽ thay toàn bộ cảnh hiện tại, kể cả hình và giọng đã tạo.',
+      !(await ask({ title: 'Thay kịch bản hiện tại?', message: 'Kịch bản mới sẽ thay toàn bộ cảnh hiện tại, kể cả hình đã tạo.',
         confirmLabel: 'Thay kịch bản', danger: true, icon: 'alert' }))) return
   try {
     emit('job', await api.analyze(props.project.id, note.value, storyboard, ai.value, model.value.trim()))

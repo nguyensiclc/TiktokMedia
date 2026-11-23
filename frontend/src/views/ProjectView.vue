@@ -8,12 +8,9 @@ import JobLog from '../components/JobLog.vue'
 import CharacterRefs from '../components/CharacterRefs.vue'
 import TiktokPublish from '../components/TiktokPublish.vue'
 import SourceImages from '../components/SourceImages.vue'
-import ProjectVoice from '../components/ProjectVoice.vue'
-import CastVoices from '../components/CastVoices.vue'
 import DramaWriter from '../components/DramaWriter.vue'
 import ProjectSound from '../components/ProjectSound.vue'
 import SlidesPanel from '../components/SlidesPanel.vue'
-import TimelineEditor from '../components/TimelineEditor.vue'
 
 const props = defineProps({ id: String })
 const router = useRouter()
@@ -32,7 +29,7 @@ const NICHES = [
     placeholder: 'VD: 5 sự thật đáng sợ về hố đen, giọng kể hào hứng' },
   { id: 'history', label: 'Lịch sử · chiến tranh', icon: 'flag', hint: 'Luôn 7 phần theo thứ tự: mở đầu gây tò mò, bối cảnh và nguyên nhân, lực lượng hai bên, diễn biến (dài nhất), kết quả, ý nghĩa, kết. Chỉ dùng sự kiện, số liệu, lời nói có thật trong sử sách, không giả sử, không bịa. Tối đa 34 cảnh (cộng ảnh bìa là 35 ảnh, mức tối đa của TikTok).',
     placeholder: 'VD: Trận Bạch Đằng năm 938, Ngô Quyền đánh quân Nam Hán' },
-  { id: 'drama', label: 'Drama · phim ngắn', icon: 'film', hint: 'Dán nguyên văn kịch bản một tập. Claude chia thành shot (mỗi shot một hình, tối đa một câu thoại), giữ đúng từng câu thoại. Mỗi nhân vật đọc bằng giọng riêng, không có người dẫn. Tin nhắn và chữ trên màn hình chỉ hiện chữ, không đọc. Nhân vật và giọng được giữ nguyên qua các tập.',
+  { id: 'drama', label: 'Drama · phim ngắn', icon: 'film', hint: 'Dán nguyên văn kịch bản một tập. Claude chia thành shot (mỗi shot một hình, tối đa một câu thoại), giữ đúng từng câu thoại. Không có người dẫn. Nhân vật được giữ nguyên qua các tập.',
     placeholder: 'CẢNH 1 – NỘI. PHÒNG HỌP LỚN TẦNG 18 – SÁNG\n(0:00) Cận mặt một tập hồ sơ bị ném mạnh xuống bàn…\nKHẢI: Ngân sách quý bốn bị gửi thẳng cho đối thủ…' },
 ]
 const DRAMA_SHOTS = 40
@@ -63,30 +60,27 @@ const scenesAll = computed(() => project.value?.scenes || [])
 const missingCount = computed(() => scenesAll.value.filter((s) => !s.mediaFile).length)
 // On-screen text (drama messages, caption cards) is shown, never voiced.
 const isScreenText = (s) => (s.speaker || '').trim().toUpperCase() === 'TEXT'
-const voiceMissing = computed(() => scenesAll.value.filter((s) => (s.narration || '').trim() && !s.audioFile && !isScreenText(s)).length)
 const castNames = computed(() => (project.value?.cast || []).map((c) => c.name))
 const lastFlowFailed = computed(() => { const j = jobs.value.find((x) => /flow/i.test(x.title || '')); return !!j && j.status === 'FAILED' })
 
-// The workflow as six steps; each shows where the project stands so the next move is obvious.
+// The workflow as five steps (script, pictures, music, export; no voice); each shows where the project stands so the next move is obvious.
 const steps = computed(() => {
   const p = project.value
   if (!p) return []
   const n = scenesAll.value.length
-  const hasAudio = p.scriptMode ? !!p.musicFile : voiceMissing.value === 0 && n > 0
   return [
     { id: 'nguon', n: 1, label: 'Nguồn & nhân vật', note: (p.sources || []).length ? `${p.sources.length} ảnh nguồn` : 'Không bắt buộc', state: 'idle' },
     { id: 'kichban', n: 2, label: 'Kịch bản', note: n ? `${n} cảnh` : 'Chưa có cảnh', state: n ? 'ok' : 'todo' },
     { id: 'hinh', n: 3, label: 'Cảnh & hình ảnh', note: !n ? '—' : missingCount.value ? `Còn ${missingCount.value} cảnh trống` : 'Đủ hình', state: !n ? 'idle' : missingCount.value ? 'todo' : 'ok' },
-    { id: 'amthanh', n: 4, label: 'Âm thanh', note: p.scriptMode ? (p.musicFile ? 'Có nhạc nền' : 'Chưa có nhạc nền') : (!n ? '—' : voiceMissing.value ? `Thiếu giọng ${voiceMissing.value} cảnh` : 'Đủ giọng đọc'), state: !n ? 'idle' : hasAudio ? 'ok' : p.scriptMode ? 'idle' : 'todo' },
-    { id: 'dung', n: 5, label: 'Dựng video', note: 'Timeline & chỉnh sửa', state: 'idle' },
-    { id: 'xuat', n: 6, label: 'Xuất & đăng', note: p.lastRender ? 'Đã xuất' : 'Chưa xuất', state: p.lastRender ? 'ok' : 'idle' },
+    { id: 'amthanh', n: 4, label: 'Nhạc nền', note: p.musicFile ? 'Có nhạc nền' : 'Không bắt buộc', state: p.musicFile ? 'ok' : 'idle' },
+    { id: 'xuat', n: 5, label: 'Xuất & đăng', note: p.lastRender ? 'Đã xuất' : 'Chưa xuất', state: p.lastRender ? 'ok' : 'idle' },
   ]
 })
 
 // One tab per step, remembered per project in this browser. Until one is picked: scenes if there are any, else sources.
 const TAB_KEY = 'ms.tab.' + props.id
 const picked = ref((() => { try { return localStorage.getItem(TAB_KEY) || '' } catch { return '' } })())
-const tab = computed(() => picked.value || (scenesAll.value.length ? 'hinh' : 'nguon'))
+const tab = computed(() => (picked.value && picked.value !== 'dung' ? picked.value : (scenesAll.value.length ? 'hinh' : 'nguon')))
 function goto(id) {
   picked.value = id
   try { localStorage.setItem(TAB_KEY, id) } catch { /* ignore */ }
@@ -113,13 +107,9 @@ const next = computed(() => {
         { label: 'Xem các cảnh', go: () => goto('hinh') },
       ] }
   }
-  if (!project.value.scriptMode && voiceMissing.value) {
-    return { tone: 'info', title: `${voiceMissing.value} cảnh chưa có giọng đọc`, text: 'Tạo giọng đọc để video có tiếng và độ dài cảnh khớp với lời thoại.',
-      actions: [{ label: 'Tạo giọng tất cả', primary: true, go: () => run(() => api.voice(props.id, {})) }] }
-  }
   if (!project.value.lastRender) {
-    return { tone: 'ok', title: 'Mọi thứ đã sẵn sàng', text: 'Xuất video. Những lần sau chỉ dựng lại các cảnh bạn vừa sửa nên nhanh hơn.',
-      actions: [{ label: 'Xuất video', primary: true, go: () => run(() => api.render(props.id)) }, { label: 'Xem timeline', go: () => goto('dung') }] }
+    return { tone: 'ok', title: 'Mọi thứ đã sẵn sàng', text: 'Xuất video hoặc danh sách ảnh. Những lần sau chỉ dựng lại các cảnh bạn vừa sửa nên nhanh hơn.',
+      actions: [{ label: 'Xuất video', primary: true, go: () => run(() => api.render(props.id)) }, { label: 'Tới phần xuất & đăng', go: () => goto('xuat') }] }
   }
   return { tone: 'ok', title: 'Video đã xuất', text: 'Xem lại video ở cột bên phải, hoặc đăng lên TikTok / xuất danh sách ảnh.',
     actions: [{ label: 'Tới phần xuất & đăng', primary: true, go: () => goto('xuat') }] }
@@ -235,7 +225,7 @@ function addScene() {
 }
 
 async function removeScene(i) {
-  if (!(await ask({ title: `Xoá cảnh ${i + 1}?`, message: 'Lời thoại, hình và giọng đọc của cảnh sẽ bị xoá.', confirmLabel: 'Xoá', danger: true }))) return
+  if (!(await ask({ title: `Xoá cảnh ${i + 1}?`, message: 'Lời script và hình của cảnh sẽ bị xoá.', confirmLabel: 'Xoá', danger: true }))) return
   project.value.scenes.splice(i, 1)
   changed()
 }
@@ -428,19 +418,10 @@ onBeforeUnmount(() => {
         <div v-show="tab === 'amthanh'" id="step-amthanh" class="stack">
         <ProjectSound :project="project" :version="version" @changed="changed" @error="(m) => (error = m)"
                       @music="(p) => { project.musicFile = p.musicFile; project.musicStart = p.musicStart; project.updatedAt = p.updatedAt }" />
-
-        <CastVoices v-if="!project.scriptMode && project.cast?.length" :project="project" @changed="changed" />
-        <ProjectVoice v-if="!project.scriptMode" :project="project" @changed="changed" />
         </div>
-
-        <div v-if="tab === 'dung'" id="step-dung"><TimelineEditor :id="id" :project="project" :saving="saving" :flush="flush"
-                        :render-busy="running.some((j) => j.type === 'render')"
-                        @changed="changed" @replace="(p) => (project = p)" @error="(m) => (error = m)"
-                        @render="run(() => api.render(id))" /></div>
 
         <div v-show="tab === 'hinh'" id="step-hinh" class="row section">
           <h3 class="grow" style="margin:0">Cảnh ({{ project.scenes.length }}) · ~{{ totalDuration.toFixed(0) }}s</h3>
-          <button v-if="!project.scriptMode" @click="run(() => api.voice(id, {}))"><Icon name="mic" /> Tạo giọng tất cả</button>
           <button class="primary" :disabled="!emptyCount" title="Tạo hình cho các cảnh trống bằng Google Flow (service tạo ảnh hoặc extension, chọn trong Cài đặt)"
                   @click="run(() => api.flowExt(id))"><Icon name="flow" /> Flow ({{ emptyCount }} cảnh trống)</button>
           <button :disabled="!emptyCount" title="Gemini API: vài giây mỗi ảnh, nhiều cảnh cùng lúc (cần API key trong Cài đặt, có tính phí)"
@@ -457,7 +438,6 @@ onBeforeUnmount(() => {
           :scene="s" :index="i" :total="project.scenes.length" :project-id="id" :version="version"
           :busy="busyScenes.has(s.id)"
           :is-ref="project.styleRefSceneId === s.id"
-          :script-mode="project.scriptMode"
           :cast="project.niche === 'drama' || castNames.length ? castNames : null"
           @ref="setRef(s.id)"
           class="scene"
@@ -467,7 +447,6 @@ onBeforeUnmount(() => {
           @flow="(t) => run(() => (t === 'image' ? api.flowExt(id, [s.id]) : api.flow(id, s.id, t)))"
           @gemini="run(() => api.gemini(id, s.id))"
           @canva="run(() => api.canva(id, s.id))"
-          @voice="run(() => api.voice(id, { sceneId: s.id }))"
           @upload="(k, f) => upload(s, k, f)"
           @clear="(k) => clear(s, k)"
         />
@@ -542,7 +521,7 @@ onBeforeUnmount(() => {
 .save { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--ok); }
 .save.busy { color: var(--muted); }
 .stack { display: flex; flex-direction: column; gap: 12px; }
-#step-nguon, #step-kichban, #step-amthanh, #step-dung, #step-hinh, #step-xuat { scroll-margin-top: 12px; }
+#step-nguon, #step-kichban, #step-amthanh, #step-hinh, #step-xuat { scroll-margin-top: 12px; }
 
 /* Segmented control: one grey track, the selected segment is a raised white pill. */
 .steps { display: flex; gap: 2px; overflow-x: auto; padding: 2px; border-radius: 9px; background: var(--fill); scrollbar-width: none; }

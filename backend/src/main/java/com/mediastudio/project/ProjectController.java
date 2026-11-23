@@ -60,7 +60,7 @@ public class ProjectController {
             p.voice = body.voice;
             p.voiceSpeed = body.voiceSpeed;
             if (body.cast != null) p.cast = body.cast;
-            p.scriptMode = body.scriptMode;
+            p.scriptMode = true; // no voice-over any more
             if (body.musicVolume != null) p.musicVolume = Math.max(0, Math.min(1, body.musicVolume));
             p.musicStart = body.musicStart == null ? 0.0 : Math.max(0, body.musicStart);
             Map<String, Scene> server = new java.util.HashMap<>();
