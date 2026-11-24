@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
-/** Posts list shared between computers through a synced folder: other computers' posts and duplicate topics. */
+/** Posts list shared between computers through a PostgreSQL database: other computers' posts and duplicate topics. */
 @RestController
 @RequestMapping("/api/sync")
 public class SyncController {
@@ -14,16 +14,25 @@ public class SyncController {
         this.sync = sync;
     }
 
-    /** {enabled, dir, machine, error, machines: [{machine, updatedAt, posts: [...]}]} (other computers only). */
+    /**
+     * {enabled, database, machine, error, machines: [{machineId, machine, updatedAt, posts: [...]}]} (other computers
+     * only). ?refresh=true: retry the database now and send this computer's posts first (after changing Settings).
+     */
     @GetMapping("/posts")
-    public Map<String, Object> posts() {
-        sync.publish();
+    public Map<String, Object> posts(@RequestParam(defaultValue = "false") boolean refresh) {
+        if (refresh) {
+            sync.retryNow();
+            sync.publish();
+        } else {
+            Thread.ofVirtual().start(sync::publish);
+        }
+        List<PostSync.MachinePosts> machines = sync.others();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("enabled", sync.enabled());
-        out.put("dir", sync.enabled() ? sync.dir().toString() : "");
+        out.put("database", sync.label());
         out.put("machine", sync.machineName());
         out.put("error", sync.lastError());
-        out.put("machines", sync.others());
+        out.put("machines", machines);
         return out;
     }
 

@@ -100,10 +100,13 @@ async function newPin() {
 }
 onMounted(loadLan)
 
-// --- Posts list shared between computers (synced folder) ---
+// --- Posts list shared between computers (PostgreSQL database) ---
 const syncInfo = ref(null)
-async function loadSync() {
-  try { syncInfo.value = await api.get('/api/sync/posts') } catch { syncInfo.value = null }
+const syncBusy = ref(false)
+async function loadSync(refresh = true) {
+  syncBusy.value = true
+  try { syncInfo.value = await api.get('/api/sync/posts' + (refresh ? '?refresh=true' : '')) } catch { syncInfo.value = null }
+  finally { syncBusy.value = false }
 }
 async function saveSync() {
   await save()
@@ -383,30 +386,35 @@ onMounted(() => {
     <div class="panel">
       <h3><Icon name="link" />Đồng bộ danh sách giữa các máy</h3>
       <p class="muted small" style="margin-top:0">
-        Mỗi máy vẫn tự làm và tự đăng bài. Các máy chỉ chia sẻ <strong>tên bài và trạng thái</strong> (không có hình) qua một thư mục
-        Google Drive hoặc OneDrive, để khi thêm chủ đề đã làm ở máy khác thì app cảnh báo trùng. Không cần bật các máy cùng lúc.
+        Mỗi máy vẫn tự làm và tự đăng bài. Các máy chỉ chia sẻ <strong>tên bài và trạng thái</strong> (không có hình) qua một
+        cơ sở dữ liệu PostgreSQL chung, để khi thêm chủ đề đã làm ở máy khác thì app cảnh báo trùng. Không cần bật các máy cùng lúc.
+        Tạo miễn phí ở <a href="https://neon.tech" target="_blank">neon.tech</a> hoặc <a href="https://supabase.com" target="_blank">supabase.com</a>,
+        chép chuỗi kết nối (Connection string) rồi dán cùng một chuỗi trên mọi máy. App tự tạo bảng khi kết nối lần đầu.
       </p>
       <div class="grid2">
         <div class="field">
-          <label>Thư mục đồng bộ (giống nhau trên mọi máy)</label>
-          <input v-model="s.syncDir" placeholder="VD: G:\My Drive\MediaStudio-sync  hoặc  C:\Users\Ban\OneDrive\MediaStudio-sync" spellcheck="false" @change="saveSync" />
+          <label>Chuỗi kết nối PostgreSQL (giống nhau trên mọi máy)</label>
+          <input v-model="s.syncDbUrl" type="password" autocomplete="off" spellcheck="false"
+                 placeholder="postgresql://user:mật-khẩu@ep-xxx.neon.tech/neondb?sslmode=require" @change="saveSync" />
         </div>
         <div class="field">
           <label>Tên máy này</label>
           <input v-model="s.machineName" :placeholder="syncInfo?.machine || 'VD: PC nhà'" @change="saveSync" />
         </div>
       </div>
-      <div v-if="s.syncDir && syncInfo" class="status small">
+      <div v-if="s.syncDbUrl && syncBusy && !syncInfo" class="status small muted">Đang kết nối…</div>
+      <div v-else-if="s.syncDbUrl && syncInfo" class="status small">
         <div v-if="syncInfo.error" class="warn">{{ syncInfo.error }}</div>
         <template v-else>
-          <div>Đang đồng bộ với tên <strong>{{ syncInfo.machine }}</strong>.</div>
+          <div>Đã kết nối <code>{{ syncInfo.database }}</code>, máy này tên <strong>{{ syncInfo.machine }}</strong>.</div>
           <div v-if="syncInfo.machines.length">Thấy {{ syncInfo.machines.length }} máy khác:
             <span v-for="(m, i) in syncInfo.machines" :key="m.machineId">{{ i ? ', ' : '' }}<strong>{{ m.machine }}</strong> ({{ m.posts.length }} bài)</span>
           </div>
-          <div v-else class="muted">Chưa thấy máy khác. Trên máy kia, chọn cùng thư mục này (sau khi Drive/OneDrive đồng bộ xong).</div>
+          <div v-else class="muted">Chưa thấy máy khác. Trên máy kia, dán cùng chuỗi kết nối này.</div>
         </template>
+        <button class="small" style="margin-top:6px" :disabled="syncBusy" @click="loadSync()">↻ Kiểm tra lại</button>
       </div>
-      <p v-else-if="!s.syncDir" class="muted small" style="margin:0">Đang tắt.</p>
+      <p v-else-if="!s.syncDbUrl" class="muted small" style="margin:0">Đang tắt.</p>
     </div>
 
     <div class="panel">

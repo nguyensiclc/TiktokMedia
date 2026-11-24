@@ -5,6 +5,13 @@ server:
 spring:
   application:
     name: media-studio
+  # The shared posts database is optional and set in Settings at run time: PostSync opens it and runs
+  # Flyway itself (db/migration), so Spring must not try to configure a DataSource or migrate on start.
+  flyway:
+    enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
   servlet:
     multipart:
       max-file-size: 2GB

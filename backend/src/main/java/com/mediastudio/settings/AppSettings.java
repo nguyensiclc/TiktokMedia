@@ -102,10 +102,11 @@ public class AppSettings {
     public int flowExtPauseSeconds = 5;
 
     /**
-     * Folder shared by every computer (Google Drive / OneDrive). Each computer writes only its own small file there
-     * (post names and states, no pictures) and reads the others' to warn about duplicate topics. Empty = off.
+     * PostgreSQL shared by every computer (e.g. a free Neon / Supabase database), as its connection string
+     * postgresql://user:password@host/db. Holds post names and states only (no pictures) to warn about duplicate
+     * topics; the schema is created by the migrations in db/migration. Empty = off. Secret.
      */
-    public String syncDir = "";
+    public String syncDbUrl = "";
     /** Name shown to the other computers. Empty = this computer's host name. */
     public String machineName = "";
 

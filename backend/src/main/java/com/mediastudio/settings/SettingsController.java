@@ -28,6 +28,7 @@ public class SettingsController {
         copy.lanPin = "";
         copy.geminiApiKey = "";
         copy.telegramBotToken = "";
+        copy.syncDbUrl = "";
         return copy;
     }
 
@@ -40,6 +41,7 @@ public class SettingsController {
             if (blank(body.geminiApiKey)) body.geminiApiKey = cur.geminiApiKey;
             if (blank(body.lanPin)) body.lanPin = cur.lanPin;
             if (blank(body.telegramBotToken)) body.telegramBotToken = cur.telegramBotToken;
+            if (blank(body.syncDbUrl)) body.syncDbUrl = cur.syncDbUrl;
         }
         if (body.lanAccess && (body.lanPin == null || body.lanPin.isBlank())) body.lanPin = newPin();
         settings.update(body);

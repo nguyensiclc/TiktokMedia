@@ -263,8 +263,8 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
       <div><span class="badge" :class="SYNC_CLS[p.state]">{{ SYNC_STATE[p.state] || p.state }}</span></div>
     </div>
     <div v-if="!otherRows.length" class="empty muted">
-      Chưa thấy bài của máy nào khác. Trên máy kia, vào Cài đặt → "Đồng bộ danh sách giữa các máy" và chọn cùng thư mục này:
-      <code>{{ sync.dir }}</code>
+      Chưa thấy bài của máy nào khác. Trên máy kia, vào Cài đặt → "Đồng bộ danh sách giữa các máy" và dán cùng chuỗi kết nối
+      (cơ sở dữ liệu <code>{{ sync.database }}</code>).
     </div>
   </div>
 
