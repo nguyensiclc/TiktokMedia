@@ -98,7 +98,7 @@ function clip(s) {
 
 // Secrets never reach the model, and a settings save only changes the fields it names (the rest, secrets included,
 // comes from the server copy), so a partial body cannot wipe anything.
-const SECRETS = ['tiktokClientSecret', 'lanPin', 'geminiApiKey', 'telegramBotToken']
+const SECRETS = ['tiktokClientSecret', 'lanPin', 'telegramBotToken', 'syncDbUrl']
 
 async function callApi({ method = 'GET', path, body }) {
   method = String(method).toUpperCase()

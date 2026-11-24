@@ -40,7 +40,7 @@ const focusMain = () => document.getElementById('main')?.focus()
             <Icon :name="t.icon" />
           </button>
         </div>
-        <div class="stack muted">Claude · Google Flow · Gemini · Canva · VieNeu-TTS · FFmpeg</div>
+        <div class="stack muted">Claude · Google Flow · Canva · FFmpeg</div>
       </div>
     </aside>
     <main id="main" class="main" tabindex="-1">

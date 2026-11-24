@@ -69,16 +69,6 @@ public class AppSettings {
     public boolean enableCanva = true;
     public String canvaMcpUrl = "https://mcp.canva.com/mcp";
 
-    // --- Gemini API image generation (Nano Banana): fast, no browser ---
-    /** From Google AI Studio → Get API key. Empty = the Gemini button is disabled. */
-    public String geminiApiKey = "";
-    /** Image model id, e.g. gemini-3.1-flash-image, gemini-nano-banana-2.1, gemini-3-pro-image. */
-    public String geminiImageModel = "gemini-3.1-flash-image";
-    /** 1K, 2K or 4K. 2K is about full-HD for 9:16 / 16:9. */
-    public String geminiImageSize = "2K";
-    /** Scenes generated at the same time. */
-    public int geminiParallel = 3;
-
     // --- Google Flow (browser automation through Playwright MCP) ---
     public boolean enableFlow = true;
     /**

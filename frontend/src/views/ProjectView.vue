@@ -99,10 +99,9 @@ const next = computed(() => {
       title: `Còn ${n} cảnh chưa có hình`,
       text: lastFlowFailed.value
         ? 'Lần tạo bằng Flow gần nhất bị lỗi (thường là Google chặn tạm thời). Chờ 30–60 phút rồi thử lại, hoặc tải hình lên thủ công ở danh sách cảnh.'
-        : 'Tạo bằng Google Flow (qua service tạo ảnh của bạn, khoảng 15–40 giây mỗi ảnh), hoặc Gemini (nhanh, có phí), hoặc tải hình lên. Cảnh đã có hình được giữ nguyên.',
+        : 'Tạo bằng Google Flow (qua service tạo ảnh của bạn, khoảng 15–40 giây mỗi ảnh), bằng Canva, hoặc tải hình lên. Cảnh đã có hình được giữ nguyên.',
       actions: [
         { icon: 'flow', label: `Tạo ${emptyCount.value} cảnh bằng Flow`, primary: true, disabled: !emptyCount.value, go: () => run(() => api.flowExt(props.id)) },
-        { icon: 'zap', label: 'Bằng Gemini', disabled: !emptyCount.value, go: () => run(() => api.geminiAll(props.id, true)) },
         { label: 'Tạo bằng Canva', disabled: !emptyCount.value, go: () => run(() => api.canvaAll(props.id, true)) },
         { label: 'Xem các cảnh', go: () => goto('hinh') },
       ] }
@@ -425,8 +424,6 @@ onBeforeUnmount(() => {
           <h3 class="grow" style="margin:0">Cảnh ({{ project.scenes.length }}) · ~{{ totalDuration.toFixed(0) }}s</h3>
           <button class="primary" :disabled="!emptyCount" title="Tạo hình cho các cảnh trống bằng Google Flow (service tạo ảnh hoặc extension, chọn trong Cài đặt)"
                   @click="run(() => api.flowExt(id))"><Icon name="flow" /> Flow ({{ emptyCount }} cảnh trống)</button>
-          <button :disabled="!emptyCount" title="Gemini API: vài giây mỗi ảnh, nhiều cảnh cùng lúc (cần API key trong Cài đặt, có tính phí)"
-                  @click="run(() => api.geminiAll(id, true))"><Icon name="zap" /> Gemini ({{ emptyCount }})</button>
           <button :disabled="!emptyCount" title="Chỉ tạo các cảnh đang trống hình, cùng nhân vật và phong cách"
                   @click="run(() => api.canvaAll(id, true))"><Icon name="palette" /> Canva tất cả ({{ emptyCount }} cảnh trống)</button>
           <button @click="addScene"><Icon name="plus" /> Cảnh</button>
@@ -446,7 +443,6 @@ onBeforeUnmount(() => {
           @remove="removeScene(i)"
           @move="(d) => move(i, d)"
           @flow="(t) => run(() => (t === 'image' ? api.flowExt(id, [s.id]) : api.flow(id, s.id, t)))"
-          @gemini="run(() => api.gemini(id, s.id))"
           @canva="run(() => api.canva(id, s.id))"
           @upload="(k, f) => upload(s, k, f)"
           @clear="(k) => clear(s, k)"

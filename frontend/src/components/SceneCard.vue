@@ -18,7 +18,7 @@ function setSpeaker(v) {
   props.scene.speaker = v || null
   emit('change')
 }
-const emit = defineEmits(['change', 'remove', 'move', 'flow', 'gemini', 'canva', 'upload', 'clear', 'ref'])
+const emit = defineEmits(['change', 'remove', 'move', 'flow', 'canva', 'upload', 'clear', 'ref'])
 
 const mediaUrl = computed(() => props.scene.mediaFile && fileUrl(props.projectId, 'assets', props.scene.mediaFile, props.version))
 
@@ -76,7 +76,6 @@ const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upl
       </div>
 
       <div class="row actions">
-        <button class="small" :disabled="busy" title="Tạo ảnh bằng Gemini API (nhanh, vài giây, có phí)" @click="emit('gemini')"><Icon name="zap" /> Gemini</button>
         <button class="small" :disabled="busy" title="Tạo lại ảnh cảnh này bằng Google Flow" @click="emit('flow', 'image')"><Icon name="flow" /> Flow ảnh</button>
         <button class="small" :disabled="busy" @click="emit('flow', 'video')"><Icon name="film" /> Flow video</button>
         <button class="small" :disabled="busy" @click="emit('canva')"><Icon name="palette" /> Canva</button>

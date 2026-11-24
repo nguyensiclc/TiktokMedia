@@ -414,7 +414,6 @@ public class AssistantService {
             new Rule("POST", Pattern.compile("/analyze$"), "Phân tích ảnh nguồn"),
             new Rule("POST", Pattern.compile("/drama/"), "Viết phim ngắn"),
             new Rule("POST", Pattern.compile("/(flow-gen|flow-all|flow)$"), "Tạo hình bằng Google Flow"),
-            new Rule("POST", Pattern.compile("/(gemini-all|gemini)$"), "Tạo hình bằng Gemini"),
             new Rule("POST", Pattern.compile("/(canva-all|canva)$"), "Tạo hình bằng Canva"),
             new Rule("POST", Pattern.compile("/characters/portraits$"), "Vẽ chân dung nhân vật"),
             new Rule("POST", Pattern.compile("/voice$"), "Tạo giọng đọc"),

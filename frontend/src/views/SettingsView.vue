@@ -182,29 +182,6 @@ onMounted(() => {
     </div>
 
     <div class="panel">
-      <h2><Icon name="zap" />Tạo ảnh nhanh bằng Gemini API</h2>
-      <p class="muted">Gọi thẳng model ảnh của Google (Nano Banana), không cần mở trình duyệt hay chạy Claude: mỗi ảnh vài giây, nhiều cảnh cùng lúc,
-        có gửi kèm ảnh nhân vật và ảnh mẫu phong cách. Lấy key tại <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com → Get API key</a>
-        (cần bật thanh toán; tính phí theo ảnh, xem bảng giá của Google).</p>
-      <div class="grid2">
-        <div class="field"><label>Gemini API key</label><input v-model="s.geminiApiKey" type="password" autocomplete="off" placeholder="AIza…" /></div>
-        <div class="field"><label>Model ảnh</label>
-          <input v-model="s.geminiImageModel" list="gemini-models" />
-          <datalist id="gemini-models">
-            <option value="gemini-3.1-flash-image">Nano Banana 2 (ổn định)</option>
-            <option value="gemini-nano-banana-2.1">Nano Banana 2.1 (mới)</option>
-            <option value="gemini-3-pro-image">Nano Banana Pro (đẹp hơn, chậm và đắt hơn)</option>
-            <option value="gemini-3.1-flash-lite-image">Nano Banana 2 Lite (rẻ, kém giữ nhân vật)</option>
-          </datalist>
-        </div>
-        <div class="field"><label>Độ phân giải</label>
-          <select v-model="s.geminiImageSize"><option>1K</option><option>2K</option><option>4K</option></select>
-        </div>
-        <div class="field"><label>Số cảnh tạo cùng lúc</label><input v-model.number="s.geminiParallel" type="number" min="1" max="6" /></div>
-      </div>
-    </div>
-
-    <div class="panel">
       <h3><Icon name="flow" />Tạo ảnh bằng Google Flow</h3>
       <p class="hint">Mỗi câu lệnh đã chứa đủ mô tả phong cách và nhân vật giống hệt nhau ở mọi cảnh, nên các cảnh vẫn khớp nhau.</p>
       <div class="field"><label for="flow-engine">Cách tạo</label>

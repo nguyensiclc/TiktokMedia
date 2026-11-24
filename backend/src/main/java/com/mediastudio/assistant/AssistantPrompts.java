@@ -55,7 +55,6 @@ final class AssistantPrompts {
             - Drama: POST /api/projects/{id}/drama/ideas {genre?, note?}; /drama/series {index | logline}; /drama/episode {n}.
             Hình ảnh (Job)
             - POST /api/projects/{id}/flow-gen {onlyMissing?:true, sceneIds?:[...]} — tạo hình bằng Google Flow (cách mặc định).
-            - POST /api/projects/{id}/gemini-all {onlyMissing?:true} | /scenes/{sceneId}/gemini — Gemini API (cần API key).
             - POST /api/projects/{id}/canva-all {onlyMissing} | /scenes/{sceneId}/canva — Canva.
             - POST /api/projects/{id}/characters/portraits {ids?} — vẽ chân dung nhân vật tham chiếu.
             - GET /api/flow-api/health — dịch vụ Flow có chạy không.

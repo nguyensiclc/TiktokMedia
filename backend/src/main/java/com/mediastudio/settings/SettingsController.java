@@ -26,7 +26,6 @@ public class SettingsController {
         AppSettings copy = mapper.convertValue(s, AppSettings.class);
         copy.tiktokClientSecret = "";
         copy.lanPin = "";
-        copy.geminiApiKey = "";
         copy.telegramBotToken = "";
         copy.syncDbUrl = "";
         return copy;
@@ -38,7 +37,6 @@ public class SettingsController {
             // Other devices got the settings without secrets: blank means "unchanged", not "erase".
             AppSettings cur = settings.get();
             if (blank(body.tiktokClientSecret)) body.tiktokClientSecret = cur.tiktokClientSecret;
-            if (blank(body.geminiApiKey)) body.geminiApiKey = cur.geminiApiKey;
             if (blank(body.lanPin)) body.lanPin = cur.lanPin;
             if (blank(body.telegramBotToken)) body.telegramBotToken = cur.telegramBotToken;
             if (blank(body.syncDbUrl)) body.syncDbUrl = cur.syncDbUrl;

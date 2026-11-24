@@ -41,8 +41,6 @@ export const api = {
     return job
   },
   flowApiHealth: () => api.get('/api/flow-api/health'),
-  gemini: (id, sceneId) => api.post(`/api/projects/${id}/scenes/${sceneId}/gemini`),
-  geminiAll: (id, onlyMissing = true) => api.post(`/api/projects/${id}/gemini-all`, { onlyMissing }),
   canvaAll: (id, onlyMissing = true) => api.post(`/api/projects/${id}/canva-all`, { onlyMissing }),
   styleRef: (id, sceneId) => api.post(`/api/projects/${id}/style-ref`, { sceneId }),
   voice: (id, body) => api.post(`/api/projects/${id}/voice`, body),

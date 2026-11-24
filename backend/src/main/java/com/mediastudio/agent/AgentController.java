@@ -12,27 +12,12 @@ import java.util.Map;
 public class AgentController {
     private final AgentService agent;
     private final RenderService render;
-    private final GeminiImageService gemini;
     private final FlowApiService flowApi;
 
-    public AgentController(AgentService agent, RenderService render, GeminiImageService gemini, FlowApiService flowApi) {
+    public AgentController(AgentService agent, RenderService render, FlowApiService flowApi) {
         this.agent = agent;
         this.render = render;
-        this.gemini = gemini;
         this.flowApi = flowApi;
-    }
-
-    /** Gemini API image for one scene. */
-    @PostMapping("/scenes/{sceneId}/gemini")
-    public Job gemini(@PathVariable String id, @PathVariable String sceneId) {
-        return gemini.scene(id, sceneId);
-    }
-
-    /** {onlyMissing?: true} — Gemini API images for many scenes at once. */
-    @PostMapping("/gemini-all")
-    public Job geminiAll(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
-        boolean onlyMissing = body == null || !Boolean.FALSE.equals(body.get("onlyMissing"));
-        return gemini.all(id, onlyMissing);
     }
 
     /** {topic, scenes, language, style, append, niche?: story|facts|history|drama} — for drama, topic is the screenplay. */
