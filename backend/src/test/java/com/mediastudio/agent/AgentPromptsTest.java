@@ -75,10 +75,11 @@ class AgentPromptsTest {
     }
 
     @Test
-    void historyNicheHasSevenPartsRealFactsAndMax35() {
+    void historyNicheHasSevenPartsRealFactsAndMax34() {
+        // 34 scenes at most: TikTok takes 35 photos per post and the cover slide is the 35th.
         String h = AgentPrompts.storyboard("Bạch Đằng 938", 50, "Vietnamese", "", "9:16", List.of(), false, "history");
-        org.junit.jupiter.api.Assertions.assertTrue(h.contains("EXACTLY 35") && h.contains("HISTORICAL ACCURACY")
-                && h.contains("PART 7") && h.contains("giả sử") && h.contains("~40%"));
+        org.junit.jupiter.api.Assertions.assertTrue(h.contains("EXACTLY 34") && h.contains("HISTORICAL ACCURACY")
+                && h.contains("PART 7") && h.contains("giả sử") && h.contains("the heart of the video"));
         String a = AgentPrompts.storyboard("Bạch Đằng 938", 5, "Vietnamese", "", "9:16", List.of(), true, "history");
         org.junit.jupiter.api.Assertions.assertTrue(a.contains("HISTORICAL ACCURACY") && !a.contains("PART 1"));
         // every niche: digits + capitalised names, placeholders filled, "%" survives formatting
