@@ -166,7 +166,7 @@ public class TiktokController {
     @PostMapping("/projects/{id}/tiktok/studio-post")
     public Job studioPost(@PathVariable String id, @RequestBody Map<String, Object> body) {
         return studio.post(id, str(body.get("privacy")), str(body.get("caption")), str(body.get("title")),
-                !Boolean.FALSE.equals(body.get("aiLabel")), Boolean.TRUE.equals(body.get("draft")));
+                !Boolean.FALSE.equals(body.get("aiLabel")), Boolean.TRUE.equals(body.get("draft")), str(body.get("sound")));
     }
 
     // ---------------------------------------------------------------- publish

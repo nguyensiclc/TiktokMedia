@@ -54,19 +54,33 @@ public class StudioPoster {
      * @param aiLabel turn on TikTok's "AI-generated content" label (the pictures are AI-made)
      */
     public Job post(String projectId, String privacy, String caption, boolean aiLabel) {
-        return post(projectId, privacy, caption, null, aiLabel, false);
+        return post(projectId, privacy, caption, null, aiLabel, false, null);
     }
 
     public Job post(String projectId, String privacy, String caption, boolean aiLabel, boolean draft) {
-        return post(projectId, privacy, caption, null, aiLabel, draft);
+        return post(projectId, privacy, caption, null, aiLabel, draft, null);
+    }
+
+    /** What to search in TikTok's sound library when the user named no song: something that fits the niche. */
+    static String defaultSound(String niche) {
+        return switch (niche == null ? "" : niche) {
+            case "history" -> "epic cinematic";
+            case "facts" -> "mystery";
+            case "drama" -> "sad piano";
+            default -> "nhạc nhẹ nhàng";
+        };
     }
 
     /**
      * @param title post title; null = the project's TikTok title
      * @param draft true = click "Save draft" instead of Post: nothing is published, the post waits in Studio's drafts.
+     * @param sound song name / keyword to pick in TikTok's sound library. null or blank: a posted photo set gets a
+     *              sound fitting the niche (it cannot be changed after posting); a draft keeps none (added later).
      */
-    public Job post(String projectId, String privacy, String caption, String title, boolean aiLabel, boolean draft) {
+    public Job post(String projectId, String privacy, String caption, String title, boolean aiLabel, boolean draft, String sound) {
         Project p = projects.get(projectId);
+        String wanted = sound == null ? "" : sound.replace('\n', ' ').trim();
+        String soundQuery = !wanted.isEmpty() ? wanted : draft ? "" : defaultSound(p.niche);
         if (!PRIVACY.containsKey(privacy)) throw new IllegalArgumentException("Hãy chọn ai được xem bài đăng");
         if (p.slideFiles == null || p.slideFiles.isEmpty()) throw new IllegalArgumentException("Chưa có ảnh lướt — hãy Xuất danh sách ảnh trước");
         if (AgentService.profileInUse(settings.get().browserProfile())) {
@@ -91,12 +105,13 @@ public class StudioPoster {
                         + (paths.size() - MAX_PHOTOS) + " ảnh cuối)");
                 paths = paths.subList(0, MAX_PHOTOS);
             }
-            ctx.log("▶ Mở TikTok Studio, tải " + paths.size() + " ảnh, chế độ xem: " + PRIVACY.get(privacy) + (draft ? ", lưu nháp" : ""));
+            ctx.log("▶ Mở TikTok Studio, tải " + paths.size() + " ảnh, chế độ xem: " + PRIVACY.get(privacy) + (draft ? ", lưu nháp" : "")
+                    + (soundQuery.isEmpty() ? "" : ", nhạc: " + soundQuery));
             Path out = dir.resolve(RESULT);
             Files.deleteIfExists(out);
             Path downloads = projects.folder(projectId, "downloads");
             Path cfg = mcp.writePlaywright(dir.resolve(".mcp-tiktok.json"), downloads);
-            String steps = prompt(paths, finalTitle, finalText, PRIVACY.get(privacy), aiLabel);
+            String steps = prompt(paths, finalTitle, finalText, PRIVACY.get(privacy), aiLabel, soundQuery);
             claude.run(draft ? draftPrompt(steps) : steps,
                     "You operate TikTok Studio in a browser for the account owner, who asked for this post and approved"
                             + " every step described. Work autonomously; never ask questions. Never solve captchas or"
@@ -153,7 +168,16 @@ public class StudioPoster {
                 .replaceFirst("Publish a PHOTO post", "Prepare a PHOTO post and SAVE IT AS A DRAFT (do NOT publish)");
     }
 
-    static String prompt(List<String> files, String title, String caption, String privacyLabel, boolean aiLabel) {
+    static String prompt(List<String> files, String title, String caption, String privacyLabel, boolean aiLabel, String sound) {
+        String soundRule = sound == null || sound.isBlank()
+                ? "Sound: do not change it unless the page refuses to post without one; then pick the first suggested sound."
+                : ("Sound / music (a posted photo set cannot change its sound later, so set it now): on the photo editor"
+                + " click \"Add sound\" / \"Thêm âm thanh\" / \"Âm thanh\" (or the music-note control). In the sound search box"
+                + " type \"" + sound.replace("\"", "'") + "\", wait for the results, and pick the best match (for a song name:"
+                + " that song; for a mood: the first result) that is not greyed out / unavailable. Click its use / select"
+                + " button (\"Use\" / \"Sử dụng\" / \"+\" / a check mark) so it becomes the post's sound, keep the default volume,"
+                + " and close the sound panel. Check that the editor now shows that sound's name. If the editor has no sound"
+                + " control or nothing can be picked, keep TikTok's default and go on, and say so in the result message.");
         StringBuilder list = new StringBuilder();
         for (int i = 0; i < files.size(); i++) list.append("  ").append(i + 1).append(". ").append(files.get(i)).append('\n');
         return """
@@ -208,7 +232,7 @@ public class StudioPoster {
                    - "Who can view this post" / "Ai có thể xem": choose %s.
                    - %s
                    - Leave everything else as it is (no branded content / promotion, no schedule: post now).
-                   - Sound: do not change it unless the page refuses to post without one; then pick the first suggested sound.
+                   - %s
                 6. Click the red Post button ("Đăng" / "Post"). If a dialog asks to confirm or warns about something,
                    read it: confirm a normal "post now?" question; if it is a content / copyright / policy warning, do not
                    bypass it, write FAILED with the warning text and stop.
@@ -227,6 +251,6 @@ public class StudioPoster {
                 """.formatted(files.size(), list, title, caption, privacyLabel, files.size(), privacyLabel,
                 aiLabel ? "\"AI-generated content\" / \"Nội dung do AI tạo\": turn it ON (the pictures are AI-generated)."
                         : "\"AI-generated content\" / \"Nội dung do AI tạo\": leave it as it is.",
-                privacyLabel, RESULT);
+                soundRule, privacyLabel, RESULT);
     }
 }
