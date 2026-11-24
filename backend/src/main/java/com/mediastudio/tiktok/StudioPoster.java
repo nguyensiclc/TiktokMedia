@@ -182,6 +182,14 @@ public class StudioPoster {
                    accepted, use the page's add-more ("+" / "Thêm") control to add the missing ones, keeping the order.
                 3. Wait (browser_wait_for, up to 3 minutes in total) until all %d photos are shown in the editor. Count them.
                    If the count is wrong or the first photo is not the cover, fix it (remove and re-add) before going on.
+                   STUCK UPLOAD: TikTok Studio sometimes hangs while uploading. Check with a snapshot about every 20 s. If
+                   the upload shows no progress for about 60 s (same percentage / spinner / "Uploading" / "Đang tải lên",
+                   no new photo appearing), or all photos are still not shown after 3 minutes, it is stuck: click the
+                   upload's cancel control ("Cancel" / "Hủy" / "Huỷ" / the X on the upload), confirm a "Discard" /
+                   "Bỏ" / "Hủy bỏ" question if one appears, then reload the page (browser_navigate to
+                   https://www.tiktok.com/tiktokstudio/upload again, like pressing F5) and start over from step 2 with all
+                   the photos. Do this at most 3 times; if it is still stuck on the 3rd try, write FAILED with message
+                   "Tải ảnh lên TikTok Studio bị treo 3 lần" and stop.
                 4. Title: photo posts have a separate one-line title field ("Add a title" / "Thêm tiêu đề" / "Tiêu đề",
                    above the description). If the TITLE is not empty, click it, clear it and type the title. If the page
                    has no title field, skip this and go on.
