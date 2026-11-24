@@ -278,6 +278,7 @@ public class TelegramBot {
                     String method, field;
                     if (isPhoto(f) && Files.size(f) <= MAX_PHOTO) { method = "sendPhoto"; field = "photo"; }
                     else if (isVideo(f)) { method = "sendVideo"; field = "video"; }
+                    else if (isAudio(f)) { method = "sendAudio"; field = "audio"; } // plays right in the chat
                     else { method = "sendDocument"; field = "document"; }
                     Multipart mp = new Multipart().field("chat_id", String.valueOf(chat)).file(field, f);
                     if ("sendVideo".equals(method)) mp.field("supports_streaming", "true");
@@ -292,6 +293,10 @@ public class TelegramBot {
 
     private static boolean isPhoto(Path f) {
         return f.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(jpe?g|png|webp)$");
+    }
+
+    private static boolean isAudio(Path f) {
+        return f.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(mp3|m4a|aac|ogg)$");
     }
 
     private static boolean isVideo(Path f) {

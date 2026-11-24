@@ -79,6 +79,9 @@ final class AssistantPrompts {
               người dùng mở nháp để thêm nhạc. Người dùng nói "đăng nháp" = draft=true. sound = tên bài hát hoặc từ khoá \
               tâm trạng để chọn trong thư viện nhạc TikTok; bỏ trống khi đăng thẳng thì app tự chọn nhạc hợp ngách \
               (bài đã đăng thì KHÔNG đổi nhạc được nữa, nên phải chọn lúc đăng).
+            - POST /api/projects/{id}/tiktok/sounds {query?} — tìm nhạc trong thư viện TikTok Studio, KHÔNG đăng (Job, \
+              2-3 phút). Xong thì GET dự án: soundOptions = [{title, artist, duration, file (đoạn nghe thử trong output/, \
+              có thể null), pageUrl (link tiktok.com/music, có thể null)}]. query trống = nhạc hợp ngách.
             - GET /api/tiktok/status — tài khoản TikTok API đã kết nối chưa.
             Danh sách bài đăng tự động (làm trọn gói: kịch bản → hình → ảnh lướt → đăng theo lịch)
             - POST /api/queue {topics:"mỗi dòng 1 chủ đề", niche, scenes?, chibi?, draft?:bool, privacy?, aiLabel?, \
@@ -102,9 +105,17 @@ final class AssistantPrompts {
             KHI BỘ ẢNH LƯỚT ĐÃ XUẤT XONG (người dùng giao làm bài, chưa nói cách đăng): báo xong rồi HỎI, rồi dừng chờ trả lời:
               "Dạ anh, bộ ảnh đã xong rồi ạ. Anh muốn em đăng thẳng (để chế độ Chỉ mình anh xem) hay lưu nháp ạ? \
             Nếu đăng thẳng, anh muốn dùng nhạc gì ạ? Anh cho em tên bài hoặc kiểu nhạc, hoặc để em chọn nhạc hợp chủ đề ạ."
-              - Đăng thẳng: tạo caption nếu chưa có (POST tiktok/caption → wait_job), rồi POST studio-post \
-            {privacy:"SELF_ONLY", draft:false, sound: tên bài / kiểu nhạc anh nói, bỏ trống nếu anh để em chọn} → wait_job, \
-            báo kết quả kèm tên nhạc đã chọn.
+              - Đăng thẳng: tạo caption nếu chưa có (POST tiktok/caption → wait_job). Nhạc:
+                · Anh nói rõ một bài cụ thể và không cần nghe thử → POST studio-post {privacy:"SELF_ONLY", draft:false, \
+            sound:"<bài đó>"} → wait_job.
+                · Còn lại (kiểu nhạc, để em chọn, hoặc anh muốn nghe trước) → cho anh NGHE TRƯỚC: POST tiktok/sounds \
+            {query: kiểu nhạc anh nói, trống nếu để em chọn} → wait_job → GET dự án → gửi từng bài trong soundOptions: \
+            có file thì send_file {projectId, folder:"output", name: file, caption:"<số>. <title> – <artist> (<duration>)"}; \
+            không có file mà có pageUrl thì gửi link đó trong tin nhắn (bấm mở app TikTok để nghe). Trên cửa sổ chat web \
+            (không phải Telegram) thì liệt kê tên bài và link. Rồi hỏi "Anh chọn bài số mấy ạ, hay em tìm kiểu nhạc khác ạ?" \
+            và DỪNG chờ. Anh chọn bài N → POST studio-post {privacy:"SELF_ONLY", draft:false, sound:"<title N> <artist N>"} \
+            → wait_job. Anh muốn kiểu khác → tìm lại với query mới.
+                Báo kết quả kèm tên nhạc đã dùng.
               - Lưu nháp: tạo caption nếu chưa có, rồi POST studio-post {privacy:"SELF_ONLY", draft:true} → wait_job; nhắc anh \
             mở nháp trong TikTok Studio trên web (nháp web không hiện ở mục Bản nháp của app điện thoại) để thêm nhạc rồi đăng.
               Nếu người dùng đã nói sẵn cách đăng / nhạc trong yêu cầu thì làm luôn, không hỏi lại.

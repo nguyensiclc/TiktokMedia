@@ -168,6 +168,143 @@ public class StudioPoster {
                 .replaceFirst("Publish a PHOTO post", "Prepare a PHOTO post and SAVE IT AS A DRAFT (do NOT publish)");
     }
 
+    static final String SOUNDS_RESULT = "tiktok-sounds.json";
+    static final int MAX_SOUNDS = 5;
+
+    /**
+     * Searches TikTok Studio's sound library (photo editor, nothing is posted or saved) and keeps up to 5 results in
+     * project.soundOptions, each with a preview clip in output/ when it could be fetched, to listen to before posting.
+     * query blank = a sound fitting the niche.
+     */
+    public Job findSounds(String projectId, String query) {
+        Project p = projects.get(projectId);
+        if (p.slideFiles == null || p.slideFiles.isEmpty()) throw new IllegalArgumentException("Chưa có ảnh lướt — hãy Xuất danh sách ảnh trước");
+        if (AgentService.profileInUse(settings.get().browserProfile())) {
+            throw new IllegalStateException("Chrome đang mở với profile Flow/TikTok — hãy đóng Chrome rồi bấm lại");
+        }
+        String q = query == null || query.isBlank() ? defaultSound(p.niche) : query.replace('\n', ' ').trim();
+        return jobs.start("tiktok-sounds", "Tìm nhạc TikTok: " + q, projectId, null, ctx -> {
+            Path dir = projects.dir(projectId);
+            Path photo = projects.file(projectId, "output", p.slideFiles.get(0));
+            if (!Files.exists(photo)) throw new IOException("Không tìm thấy " + p.slideFiles.get(0) + " — hãy xuất lại danh sách ảnh");
+            ctx.log("▶ Mở TikTok Studio, tìm nhạc \"" + q + "\" (không đăng bài)");
+            Path out = dir.resolve(SOUNDS_RESULT);
+            Files.deleteIfExists(out);
+            Path cfg = mcp.writePlaywright(dir.resolve(".mcp-tiktok.json"), projects.folder(projectId, "downloads"));
+            claude.run(soundsPrompt(photo.toAbsolutePath().toString(), q),
+                    "You operate TikTok Studio in a browser for the account owner, who wants to listen to sound choices"
+                            + " before posting. Work autonomously; never ask questions. Never post, never save a draft."
+                            + " Never solve captchas or security checks.", dir, cfg, List.of("mcp__playwright", "Write"), ctx);
+            if (!Files.exists(out)) throw new IOException("Claude không báo kết quả (" + SOUNDS_RESULT + ")");
+            JsonNode r = projects.mapper().readTree(out.toFile());
+            String status = r.path("status").asText("FAILED");
+            if (!"OK".equals(status)) {
+                String msg = r.path("message").asText("");
+                throw new IOException(switch (status) {
+                    case "NEED_LOGIN" -> "Chưa đăng nhập TikTok trong profile trình duyệt — mở Cài đặt → TikTok để đăng nhập";
+                    case "BLOCKED" -> "TikTok yêu cầu xác minh (captcha) — hãy tự xử lý trong trình duyệt rồi thử lại. " + msg;
+                    default -> "Không tìm được nhạc: " + msg;
+                });
+            }
+            // old previews of an earlier search go away
+            try (var old = Files.list(projects.folder(projectId, "output"))) {
+                for (Path f : old.filter(f -> f.getFileName().toString().startsWith("nhac-")).toList()) Files.deleteIfExists(f);
+            }
+            List<Project.SoundOption> found = new ArrayList<>();
+            for (JsonNode s : r.path("sounds")) {
+                if (found.size() >= MAX_SOUNDS) break;
+                Project.SoundOption o = new Project.SoundOption();
+                o.title = s.path("title").asText("").trim();
+                if (o.title.isEmpty()) continue;
+                o.artist = s.path("artist").asText("").trim();
+                o.duration = s.path("duration").asText("").trim();
+                String page = s.path("pageUrl").asText("").trim();
+                o.pageUrl = page.startsWith("https://www.tiktok.com/") ? page : null;
+                String audio = s.path("audioUrl").asText("").trim();
+                if (audio.startsWith("https://")) {
+                    try {
+                        o.file = download(audio, projectId, "nhac-" + (found.size() + 1));
+                    } catch (Exception e) {
+                        ctx.log("  ⚠ Không tải được đoạn nghe thử của \"" + o.title + "\": " + e.getMessage());
+                    }
+                }
+                found.add(o);
+            }
+            if (found.isEmpty()) throw new IOException("Không tìm thấy bài nhạc nào cho \"" + q + "\"");
+            projects.mutate(projectId, pr -> { pr.soundOptions = found; pr.soundQuery = q; });
+            for (int i = 0; i < found.size(); i++) {
+                Project.SoundOption o = found.get(i);
+                ctx.log("  " + (i + 1) + ". " + o.title + (o.artist.isEmpty() ? "" : " – " + o.artist)
+                        + (o.duration.isEmpty() ? "" : " (" + o.duration + ")") + (o.file != null ? " · có đoạn nghe thử" : o.pageUrl != null ? " · có link" : ""));
+            }
+            ctx.log("✔ Tìm được " + found.size() + " bài nhạc");
+        });
+    }
+
+    /** File extension from the clip's first bytes (TikTok's URLs have none; its clips are usually AAC in M4A). */
+    static String audioExt(byte[] b) {
+        if (b.length > 8 && b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p') return ".m4a";
+        if (b.length > 4 && b[0] == 'O' && b[1] == 'g' && b[2] == 'g' && b[3] == 'S') return ".ogg";
+        if (b.length > 2 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xF6) == 0xF0) return ".aac"; // ADTS
+        return ".mp3"; // ID3 tag or MPEG frames
+    }
+
+    private final java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder()
+            .followRedirects(java.net.http.HttpClient.Redirect.NORMAL).connectTimeout(java.time.Duration.ofSeconds(20)).build();
+
+    /** Fetches a preview clip into output/ (TikTok's CDN wants a browser-like request from tiktok.com). Max 15 MB. */
+    private String download(String url, String projectId, String base) throws Exception {
+        var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url)).timeout(java.time.Duration.ofSeconds(60))
+                .header("Referer", "https://www.tiktok.com/")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                .GET().build();
+        var res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+        if (res.statusCode() / 100 != 2) throw new IOException("HTTP " + res.statusCode());
+        byte[] b = res.body();
+        if (b.length < 2_000) throw new IOException("file quá nhỏ");
+        if (b.length > 15L << 20) throw new IOException("file quá lớn");
+        String type = res.headers().firstValue("content-type").orElse("");
+        if (type.startsWith("text/") || type.contains("json")) throw new IOException("không phải file âm thanh (" + type + ")");
+        String name = base + audioExt(b);
+        Files.write(projects.file(projectId, "output", name), b);
+        return name;
+    }
+
+    static String soundsPrompt(String photo, String query) {
+        return """
+                Find sounds in TikTok Studio's sound library so the account owner can listen to them before posting.
+                Use the Playwright browser tools. The page may be in Vietnamese or English.
+                NEVER click Post / "Đăng" and NEVER save a draft: this is only a search.
+
+                SEARCH FOR: "%s"
+                PHOTO to open the photo editor with: %s
+
+                STEPS
+                1. browser_navigate to https://www.tiktok.com/tiktokstudio/upload and take a snapshot.
+                   - Login page / "Log in" / "Đăng nhập" instead of the upload area: result NEED_LOGIN, stop.
+                   - Captcha / puzzle / "verify" / "Xác minh" / any security check: do NOT solve it; result BLOCKED, stop.
+                2. Click the upload button, choose PHOTO ("Ảnh" / "Photo(s)"), and upload the one photo above with
+                   browser_file_upload. Wait until the photo editor shows it. If the upload hangs (no progress for about
+                   60 s), cancel it, reload the page and try again, at most 3 times.
+                3. Open the sound picker: "Add sound" / "Thêm âm thanh" / "Âm thanh" / the music-note control. Type the
+                   search text above in its search box and wait for the results.
+                4. For each of the first %d results (in order): read its title, artist and duration. Click its play /
+                   preview button, wait about 2 s, then find the address of the clip being played: run browser_evaluate
+                   with () => [...document.querySelectorAll('audio, video, source')].map(e => e.currentSrc || e.src).filter(Boolean)
+                   and/or look at browser_network_requests for a new audio request (.mp3 / .m4a / "audio" / "music" /
+                   "tos" URLs on tiktokcdn / ibyteimg / muscdn …). Use the https URL that started with that preview (not a
+                   blob: URL). Stop the preview before the next one. If the sound has a link to its page
+                   (https://www.tiktok.com/music/…), note it too. Missing URLs are fine: leave them empty.
+                5. Close the sound picker and leave the page WITHOUT posting or saving (discard the upload if asked:
+                   "Discard" / "Bỏ" / "Hủy bỏ").
+                6. Write ./%s (overwrite) as exactly one JSON object:
+                   {"status": "OK" | "NEED_LOGIN" | "BLOCKED" | "FAILED", "message": "<one short sentence, in Vietnamese>",
+                    "sounds": [{"title": "...", "artist": "...", "duration": "0:30", "audioUrl": "https://...", "pageUrl": "https://www.tiktok.com/music/..."}]}
+                   OK only when at least one sound was listed.
+                Do not log out, do not change account settings, do not delete anything. Keep your final message short.
+                """.formatted(query.replace("\"", "'"), photo, MAX_SOUNDS, SOUNDS_RESULT);
+    }
+
     static String prompt(List<String> files, String title, String caption, String privacyLabel, boolean aiLabel, String sound) {
         String soundRule = sound == null || sound.isBlank()
                 ? "Sound: do not change it unless the page refuses to post without one; then pick the first suggested sound."

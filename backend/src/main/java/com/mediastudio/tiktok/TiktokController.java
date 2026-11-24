@@ -169,6 +169,15 @@ public class TiktokController {
                 !Boolean.FALSE.equals(body.get("aiLabel")), Boolean.TRUE.equals(body.get("draft")), str(body.get("sound")));
     }
 
+    /**
+     * Body: {query?} — searches TikTok Studio's sound library (nothing is posted) → project.soundOptions with preview
+     * clips in output/ (nhac-1.mp3 …) to listen to before posting. Empty query = a sound fitting the niche.
+     */
+    @PostMapping("/projects/{id}/tiktok/sounds")
+    public Job findSounds(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
+        return studio.findSounds(id, body == null ? null : str(body.get("query")));
+    }
+
     // ---------------------------------------------------------------- publish
 
     /**

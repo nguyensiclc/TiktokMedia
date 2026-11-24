@@ -109,6 +109,20 @@ public class Project {
     /** Uploads to TikTok made from this project. */
     public List<TiktokPost> tiktokPosts = new ArrayList<>();
 
+    /** Sounds last found in TikTok's library for this post, to listen to before posting (newest search only). */
+    public List<SoundOption> soundOptions = new ArrayList<>();
+    public String soundQuery;
+
+    public static class SoundOption {
+        public String title;
+        public String artist;
+        public String duration;
+        /** Preview clip in output/ (null when it could not be fetched: use pageUrl). */
+        public String file;
+        /** tiktok.com/music/… page: opens the sound in the TikTok app. */
+        public String pageUrl;
+    }
+
     public static class TiktokPost {
         public String publishId;
         /** draft (inbox) or direct */
