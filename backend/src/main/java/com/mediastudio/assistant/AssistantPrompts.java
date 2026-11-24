@@ -75,6 +75,9 @@ final class AssistantPrompts {
               startAt?: ISO-8601 UTC, intervalHours?:24} — tạo mỗi chủ đề 1 dự án 9:16. draft=true: lưu nháp TikTok ngay khi xong.
             - POST /api/queue/projects/{id} {action:"queue"|"remove"|"now"|"retry", scheduledAt?, privacy?}.
             - GET /api/queue/status; POST /api/queue/pause {paused}; POST /api/queue/stop.
+            - POST /api/sync/check {topics:[...]} — chủ đề nào đã làm rồi (trên máy này hoặc máy khác dùng chung danh sách). \
+              Gọi TRƯỚC khi tạo dự án / thêm vào danh sách; nếu trùng thì báo người dùng (tên bài, máy, trạng thái) và hỏi có làm tiếp không.
+              GET /api/sync/posts — bài đăng của các máy khác.
             Tác vụ
             - GET /api/jobs?projectId=… — job gần đây. GET /api/jobs/{id}. GET /api/jobs/{id}/log?tail=40. POST /api/jobs/{id}/cancel.
             Hệ thống & cài đặt

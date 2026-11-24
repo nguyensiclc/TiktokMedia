@@ -100,6 +100,17 @@ async function newPin() {
 }
 onMounted(loadLan)
 
+// --- Posts list shared between computers (synced folder) ---
+const syncInfo = ref(null)
+async function loadSync() {
+  try { syncInfo.value = await api.get('/api/sync/posts') } catch { syncInfo.value = null }
+}
+async function saveSync() {
+  await save()
+  await loadSync()
+}
+onMounted(loadSync)
+
 // --- Telegram bot (talks to the chat assistant) ---
 const tg = ref(null)
 async function loadTg() {
@@ -367,6 +378,35 @@ onMounted(() => {
         <span v-else class="muted">Đang tắt</span>
         <span v-if="tg?.enabled && !tg.allowed" class="warn small">Chưa có ID nào được phép: bot sẽ từ chối mọi người.</span>
       </div>
+    </div>
+
+    <div class="panel">
+      <h3><Icon name="link" />Đồng bộ danh sách giữa các máy</h3>
+      <p class="muted small" style="margin-top:0">
+        Mỗi máy vẫn tự làm và tự đăng bài. Các máy chỉ chia sẻ <strong>tên bài và trạng thái</strong> (không có hình) qua một thư mục
+        Google Drive hoặc OneDrive, để khi thêm chủ đề đã làm ở máy khác thì app cảnh báo trùng. Không cần bật các máy cùng lúc.
+      </p>
+      <div class="grid2">
+        <div class="field">
+          <label>Thư mục đồng bộ (giống nhau trên mọi máy)</label>
+          <input v-model="s.syncDir" placeholder="VD: G:\My Drive\MediaStudio-sync  hoặc  C:\Users\Ban\OneDrive\MediaStudio-sync" spellcheck="false" @change="saveSync" />
+        </div>
+        <div class="field">
+          <label>Tên máy này</label>
+          <input v-model="s.machineName" :placeholder="syncInfo?.machine || 'VD: PC nhà'" @change="saveSync" />
+        </div>
+      </div>
+      <div v-if="s.syncDir && syncInfo" class="status small">
+        <div v-if="syncInfo.error" class="warn">{{ syncInfo.error }}</div>
+        <template v-else>
+          <div>Đang đồng bộ với tên <strong>{{ syncInfo.machine }}</strong>.</div>
+          <div v-if="syncInfo.machines.length">Thấy {{ syncInfo.machines.length }} máy khác:
+            <span v-for="(m, i) in syncInfo.machines" :key="m.machineId">{{ i ? ', ' : '' }}<strong>{{ m.machine }}</strong> ({{ m.posts.length }} bài)</span>
+          </div>
+          <div v-else class="muted">Chưa thấy máy khác. Trên máy kia, chọn cùng thư mục này (sau khi Drive/OneDrive đồng bộ xong).</div>
+        </template>
+      </div>
+      <p v-else-if="!s.syncDir" class="muted small" style="margin:0">Đang tắt.</p>
     </div>
 
     <div class="panel">

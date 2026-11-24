@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { api, fileUrl } from '../api'
 import { ask } from '../confirm'
 import AutopilotPanel from '../components/AutopilotPanel.vue'
+import { confirmNoDuplicates, SYNC_STATE } from '../dupes'
 
 /** The posts list: every project as one row with its posting time, progress and state. */
 const router = useRouter()
@@ -36,11 +37,20 @@ const FILTERS = [
   { id: 'none', label: 'Ngoài danh sách' },
 ]
 
+/** Posts of the other computers sharing the list through a synced folder (names and states only). */
+const sync = ref({ enabled: false, machines: [] })
+const SYNC_CLS = { QUEUED: 'wait', PREPARING: 'run', READY: 'ready', POSTING: 'run', POSTED: 'ok', DRAFTED: 'ok', FAILED: 'bad', NONE: 'none' }
+const otherRows = computed(() => sync.value.machines
+  .flatMap((m) => m.posts.map((p) => ({ ...p, machine: m.machine, key: m.machineId + '/' + p.id })))
+  .sort((a, b) => new Date(b.postedAt || b.scheduledAt || b.createdAt || 0) - new Date(a.postedAt || a.scheduledAt || a.createdAt || 0)))
+const filters = computed(() => (sync.value.enabled ? [...FILTERS, { id: 'others', label: 'Máy khác' }] : FILTERS))
+
 async function load() {
   try {
-    const [ps, st] = await Promise.all([api.projects(), api.get('/api/queue/status')])
+    const [ps, st, sy] = await Promise.all([api.projects(), api.get('/api/queue/status'), api.get('/api/sync/posts').catch(() => null)])
     projects.value = ps
     status.value = st
+    if (sy) sync.value = sy
     error.value = ''
   } catch (e) {
     error.value = 'Không kết nối được backend: ' + e.message
@@ -163,6 +173,7 @@ async function togglePause() {
 }
 async function create() {
   try {
+    if (!(await confirmNoDuplicates([name.value]))) return
     const p = await api.createProject(name.value, aspect.value)
     router.push(`/project/${p.id}`)
   } catch (e) {
@@ -228,12 +239,36 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
   <pre v-if="showLog && status.current" class="log block">{{ status.current.log.join('\n') }}</pre>
 
   <div class="filters" role="tablist">
-    <button v-for="f in FILTERS" :key="f.id" role="tab" :aria-selected="filter === f.id" :class="{ on: filter === f.id }" @click="filter = f.id">
+    <button v-for="f in filters" :key="f.id" role="tab" :aria-selected="filter === f.id" :class="{ on: filter === f.id }" @click="filter = f.id">
       {{ f.label }}<span v-if="f.id === 'queue' && counts.queue" class="cnt">{{ counts.queue }}</span><span v-if="f.id === 'failed' && counts.failed" class="cnt bad">{{ counts.failed }}</span>
     </button>
   </div>
 
-  <div class="table panel">
+  <div v-if="filter === 'others'" class="table panel">
+    <div v-if="sync.error" class="sync-err small">{{ sync.error }}</div>
+    <div class="tr th others">
+      <div>Bài</div><div>Máy</div><div>Giờ đăng</div><div>Trạng thái</div>
+    </div>
+    <div v-for="p in otherRows" :key="p.key" class="tr others ro">
+      <div class="pt">
+        <strong>{{ p.name }}</strong>
+        <span class="muted small">{{ NICHE[p.niche] || p.niche }}<template v-if="p.deleted"> · dự án đã xoá</template></span>
+      </div>
+      <div class="small">{{ p.machine }}</div>
+      <div class="small">
+        <template v-if="p.postedAt">{{ fmt(p.postedAt) }}</template>
+        <template v-else-if="p.scheduledAt && p.state !== 'NONE'">{{ fmt(p.scheduledAt) }}</template>
+        <span v-else class="muted">—</span>
+      </div>
+      <div><span class="badge" :class="SYNC_CLS[p.state]">{{ SYNC_STATE[p.state] || p.state }}</span></div>
+    </div>
+    <div v-if="!otherRows.length" class="empty muted">
+      Chưa thấy bài của máy nào khác. Trên máy kia, vào Cài đặt → "Đồng bộ danh sách giữa các máy" và chọn cùng thư mục này:
+      <code>{{ sync.dir }}</code>
+    </div>
+  </div>
+
+  <div v-else class="table panel">
     <div class="tr th">
       <div>Bài</div><div>Tiến độ</div><div>Giờ đăng</div><div>Trạng thái</div><div />
     </div>
@@ -334,11 +369,18 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
 .acts { display: flex; gap: 4px; justify-content: flex-end; cursor: default; }
 .acts .icon { width: 28px; padding: 0; justify-content: center; }
 .empty { padding: 24px; text-align: center; }
+.tr.others { grid-template-columns: minmax(220px, 3fr) minmax(120px, 1fr) minmax(150px, 1.2fr) minmax(120px, 1fr); }
+.tr.ro { cursor: default; }
+.sync-err { padding: 10px 14px; color: #D92D20; border-bottom: 1px solid var(--border); }
 
 @media (max-width: 1100px) {
   .tr { grid-template-columns: 1fr auto; grid-template-areas: "post acts" "steps steps" "when st"; }
   .th { display: none; }
   .post { grid-area: post; } .steps { grid-area: steps; } .when { grid-area: when; } .st { grid-area: st; align-items: flex-end; } .acts { grid-area: acts; }
+}
+@media (max-width: 1100px) {
+  .tr.others { grid-template-columns: 1fr auto; grid-template-areas: none; }
+  .tr.others > :nth-child(2), .tr.others > :nth-child(3) { font-size: 12px; color: var(--muted); }
 }
 @media (max-width: 820px) { .manual { flex-wrap: wrap; } .manual > * { flex: 1 1 100%; } .head { flex-wrap: wrap; } }
 </style>

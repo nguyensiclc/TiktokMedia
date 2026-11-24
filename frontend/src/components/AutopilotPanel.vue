@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { api } from '../api'
+import { confirmNoDuplicates } from '../dupes'
 
 /** Adds topics to the posts list: one new project per topic, posted at the chosen times by the background queue. */
 const emit = defineEmits(['added', 'error'])
@@ -57,6 +58,7 @@ function pickNiche(n) {
 async function add() {
   busy.value = true
   try {
+    if (!(await confirmNoDuplicates(list.value))) return
     const created = await api.post('/api/queue', {
       topics: topics.value, niche: niche.value, scenes: scenes.value, privacy: privacy.value, aiLabel: aiLabel.value, chibi: chibi.value, draft: draft.value,
       startAt: !draft.value && schedule.value && startAt.value ? new Date(startAt.value).toISOString() : '',

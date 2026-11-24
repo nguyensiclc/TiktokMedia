@@ -66,7 +66,7 @@ function onKey(e) {
 .cd-ico.danger { background: linear-gradient(180deg, #FF6B60, #E0352B); }
 .cd-ico :deep(.ico) { color: #fff; margin: 0; }
 h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; overflow-wrap: anywhere; }
-p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; white-space: pre-line; }
 .cd-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 18px; }
 .cd-actions button { min-height: 34px; border-radius: 8px; font-weight: 500; background: var(--fill-strong); border-color: transparent; box-shadow: none; }
 .cd-actions button:hover:not(:disabled) { background: color-mix(in srgb, var(--fill-strong) 70%, var(--text) 12%); }

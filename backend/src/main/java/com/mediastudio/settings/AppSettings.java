@@ -101,6 +101,14 @@ public class AppSettings {
     /** Chrome extension: seconds to wait between scenes (a short random extra is added). */
     public int flowExtPauseSeconds = 5;
 
+    /**
+     * Folder shared by every computer (Google Drive / OneDrive). Each computer writes only its own small file there
+     * (post names and states, no pictures) and reads the others' to warn about duplicate topics. Empty = off.
+     */
+    public String syncDir = "";
+    /** Name shown to the other computers. Empty = this computer's host name. */
+    public String machineName = "";
+
     /** Let phones / other devices on the same Wi-Fi open this app (needs the PIN). Off = this computer only. */
     public boolean lanAccess = false;
     /** PIN other devices must enter once; generated automatically when LAN access is switched on. */
