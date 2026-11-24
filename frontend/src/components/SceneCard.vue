@@ -34,7 +34,7 @@ const words = computed(() => (props.scene.narration || '').trim().split(/\s+/).f
 const shown = computed(() => (words.value ? Math.max(2, words.value / 3) : props.scene.duration || 4))
 const isLast = computed(() => props.index === props.total - 1)
 
-const sourceLabel = { gemini: 'Gemini', flow: 'Google Flow', canva: 'Canva', upload: 'Tải lên' }
+const sourceLabel = { flow: 'Google Flow', canva: 'Canva', upload: 'Tải lên' }
 </script>
 
 <template>

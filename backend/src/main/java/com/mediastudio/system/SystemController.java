@@ -146,7 +146,7 @@ public class SystemController {
         Files.createDirectories(profile);
         String chrome = findChrome(s);
         if (chrome == null) throw new IllegalStateException("Không tìm thấy chrome.exe — điền đường dẫn trong Cài đặt");
-        new ProcessBuilder(chrome, "--user-data-dir=" + profile.toAbsolutePath(), s.flowUrl).start();
+        new ProcessBuilder(chromeArgs(chrome, profile, s.flowUrl)).start();
         return Map.of("profile", profile.toString(),
                 "hint", "Đăng nhập Google trong cửa sổ Chrome này, rồi ĐÓNG Chrome trước khi chạy tác vụ Flow.");
     }
@@ -159,10 +159,22 @@ public class SystemController {
         Files.createDirectories(profile);
         String chrome = findChrome(s);
         if (chrome == null) throw new IllegalStateException("Không tìm thấy chrome.exe — điền đường dẫn trong Cài đặt");
-        new ProcessBuilder(chrome, "--user-data-dir=" + profile.toAbsolutePath(),
-                "https://www.tiktok.com/login?redirect_url=https%3A%2F%2Fwww.tiktok.com%2Ftiktokstudio%2Fupload").start();
+        new ProcessBuilder(chromeArgs(chrome, profile,
+                "https://www.tiktok.com/login?redirect_url=https%3A%2F%2Fwww.tiktok.com%2Ftiktokstudio%2Fupload")).start();
         return Map.of("profile", profile.toString(),
                 "hint", "Đăng nhập TikTok trong cửa sổ Chrome này, rồi ĐÓNG Chrome trước khi bấm Đăng.");
+    }
+
+    /**
+     * Command line for the manual sign-in window. On macOS Playwright starts Chrome with --use-mock-keychain, so its
+     * cookies are encrypted with a fixed key instead of the Keychain one: the sign-in window must use the same flag,
+     * or Playwright cannot read the session (and overwrites it, so the next manual Chrome asks to sign in again).
+     */
+    static List<String> chromeArgs(String chrome, Path profile, String url) {
+        List<String> cmd = new ArrayList<>(List.of(chrome, "--user-data-dir=" + profile.toAbsolutePath()));
+        if (System.getProperty("os.name", "").toLowerCase().contains("mac")) cmd.add("--use-mock-keychain");
+        cmd.add(url);
+        return cmd;
     }
 
     private static String findChrome(AppSettings s) {
