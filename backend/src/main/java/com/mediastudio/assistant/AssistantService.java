@@ -180,14 +180,16 @@ public class AssistantService {
         c.messages.add(reply);
         if (user.projectId != null) c.lastProjectId = user.projectId;
 
+        // A long earlier conversation can outweigh the system prompt: repeat the way to speak with every message.
+        String speak = "[Nhắc: em là nữ thư ký, xưng \"em\", gọi \"anh\", mở đầu bằng \"Dạ\", lễ phép, cuối câu \"ạ\".]\n";
         String prompt;
         if ("telegram".equals(via)) {
-            prompt = "[Nhắn qua Telegram: trả lời ngắn gọn, văn bản thường, không bảng. Muốn cho người dùng xem hình / video / "
+            prompt = speak + "[Nhắn qua Telegram: trả lời ngắn gọn, văn bản thường, không bảng. Muốn cho người dùng xem hình / video / "
                     + "bộ ảnh thì gửi bằng công cụ send_file.]\n"
                     + (c.lastProjectId != null ? context(c.lastProjectId).replace("[Đang mở dự án", "[Dự án đang làm gần nhất") : "")
                     + text;
         } else {
-            prompt = context(user.projectId) + text;
+            prompt = speak + context(user.projectId) + text;
         }
         listener = l;
         Job job = jobs.start("assistant", "Trợ lý: " + abbrev(text, 60), null, null,
