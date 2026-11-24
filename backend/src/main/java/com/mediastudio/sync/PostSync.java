@@ -21,10 +21,12 @@ import java.sql.*;
 import java.text.Normalizer;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Shares the posts list between computers through a PostgreSQL database (e.g. a free Neon / Supabase one) so the
- * same topic is not made twice. Only names and states travel, never pictures. The schema lives in
+ * One posts list for every computer, kept in a PostgreSQL database (e.g. a free Neon / Supabase one). Each post is
+ * made and posted by the computer holding it; any computer can take a post over (it is made again from scratch
+ * there, since pictures never travel) or delete it, and the old holder then hides it and stops. The schema lives in
  * {@code db/migration} and is applied with Flyway when the database is opened. A project deleted here stays in the
  * table (deleted = true), so a topic already posted is still recognised after its pictures were cleaned up.
  */
@@ -56,13 +58,20 @@ public class PostSync {
         public boolean queueDraft;
         public String queueStep;
         public String queueError;
+        // how it was ordered (V3), so another computer can make it again from scratch
+        public String slideRatio;
+        public Integer queueScenes;
+        public boolean queueChibi;
+        public String queuePrivacy;
+        public boolean queueAiLabel = true;
 
         /** What is compared to know whether this post changed since it was last sent. */
         String signature() {
             return String.join("|", String.valueOf(name), String.valueOf(topic), String.valueOf(niche), state,
                     String.valueOf(scheduledAt), String.valueOf(postedAt), String.valueOf(aspect),
                     scenes + "," + hasScript + "," + scenesPrompted + "," + scenesWithMedia + "," + slides + "," + hasCaption
-                            + "," + queueDraft, String.valueOf(queueStep), String.valueOf(queueError));
+                            + "," + queueDraft, String.valueOf(queueStep), String.valueOf(queueError),
+                    slideRatio + "," + queueScenes + "," + queueChibi + "," + queuePrivacy + "," + queueAiLabel);
         }
     }
 
@@ -88,6 +97,11 @@ public class PostSync {
     private String publishedName = null;
     private volatile List<MachinePosts> othersCache = List.of();
     private volatile long othersAt;
+    /**
+     * Projects on this computer that are no longer its own: taken over by another computer or deleted there. They
+     * are left on disk but hidden, never sent and never posted from here.
+     */
+    private final Set<String> foreign = ConcurrentHashMap.newKeySet();
 
     public PostSync(ProjectService projects, SettingsService settings) {
         this.projects = projects;
@@ -272,6 +286,7 @@ public class PostSync {
         Set<String> ids = new HashSet<>();
         List<Entry> changed = new ArrayList<>();
         for (Project p : list) {
+            if (foreign.contains(p.id)) continue;
             ids.add(p.id);
             Entry e = entry(p);
             if (!e.signature().equals(published.get(p.id))) changed.add(e);
@@ -296,9 +311,10 @@ public class PostSync {
                         INSERT INTO posts (machine_id, project_id, name, topic, niche, state, scheduled_at, posted_at,
                                            created_at, updated_at, deleted,
                                            aspect, scenes, has_script, scenes_prompted, scenes_with_media, slides,
-                                           has_caption, queue_draft, queue_step, queue_error)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT (machine_id, project_id) DO UPDATE SET
+                                           has_caption, queue_draft, queue_step, queue_error,
+                                           slide_ratio, queue_scenes, queue_chibi, queue_privacy, queue_ai_label)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT (project_id) DO UPDATE SET
                             name = EXCLUDED.name, topic = EXCLUDED.topic, niche = EXCLUDED.niche, state = EXCLUDED.state,
                             scheduled_at = EXCLUDED.scheduled_at, posted_at = EXCLUDED.posted_at,
                             created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at, deleted = FALSE,
@@ -306,7 +322,12 @@ public class PostSync {
                             scenes_prompted = EXCLUDED.scenes_prompted, scenes_with_media = EXCLUDED.scenes_with_media,
                             slides = EXCLUDED.slides, has_caption = EXCLUDED.has_caption,
                             queue_draft = EXCLUDED.queue_draft, queue_step = EXCLUDED.queue_step,
-                            queue_error = EXCLUDED.queue_error""")) {
+                            queue_error = EXCLUDED.queue_error,
+                            slide_ratio = EXCLUDED.slide_ratio, queue_scenes = EXCLUDED.queue_scenes,
+                            queue_chibi = EXCLUDED.queue_chibi, queue_privacy = EXCLUDED.queue_privacy,
+                            queue_ai_label = EXCLUDED.queue_ai_label
+                        -- only while this computer still holds it (not taken over or deleted elsewhere meanwhile)
+                        WHERE posts.machine_id = EXCLUDED.machine_id AND posts.removed_by IS NULL""")) {
                     for (Entry e : changed) {
                         ps.setString(1, machineId);
                         ps.setString(2, e.id);
@@ -328,6 +349,12 @@ public class PostSync {
                         ps.setBoolean(18, e.queueDraft);
                         ps.setString(19, e.queueStep);
                         ps.setString(20, e.queueError);
+                        ps.setString(21, e.slideRatio);
+                        if (e.queueScenes == null) ps.setNull(22, Types.INTEGER);
+                        else ps.setInt(22, e.queueScenes);
+                        ps.setBoolean(23, e.queueChibi);
+                        ps.setString(24, e.queuePrivacy);
+                        ps.setBoolean(25, e.queueAiLabel);
                         ps.addBatch();
                     }
                     ps.executeBatch();
@@ -371,12 +398,13 @@ public class PostSync {
             try (Connection c = ds.getConnection(); PreparedStatement ps = c.prepareStatement("""
                     SELECT m.id AS mid, m.name AS mname, m.updated_at AS mupdated, p.*
                     FROM posts p JOIN machines m ON m.id = p.machine_id
-                    WHERE p.machine_id <> ?
                     ORDER BY m.name, p.created_at DESC NULLS LAST""")) {
-                ps.setString(1, machineId);
                 Map<String, MachinePosts> byMachine = new LinkedHashMap<>();
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
+                        String pid = rs.getString("project_id");
+                        if (lostHere(rs.getString("mid"), rs.getBoolean("deleted"), rs.getString("removed_by")) && hasLocal(pid)) lose(pid);
+                        if (machineId.equals(rs.getString("mid"))) continue;
                         MachinePosts mp = byMachine.computeIfAbsent(rs.getString("mid"), k -> new MachinePosts());
                         if (mp.machineId == null) {
                             mp.machineId = rs.getString("mid");
@@ -396,6 +424,154 @@ public class PostSync {
             return othersCache;
         }
         return out;
+    }
+
+    /** A row a local project no longer owns: another computer holds it, or another computer deleted it. */
+    private boolean lostHere(String holder, boolean deleted, String removedBy) {
+        return !machineId.equals(holder) || (deleted && removedBy != null && !machineId.equals(removedBy));
+    }
+
+    private boolean hasLocal(String id) {
+        try {
+            return Files.exists(projects.dir(id).resolve("project.json"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Stop making / posting a project here: it was taken over or deleted on another computer. */
+    private void lose(String id) {
+        if (!foreign.add(id)) return;
+        try {
+            projects.mutate(id, pr -> {
+                if (pr.queueState != null && !"POSTING".equals(pr.queueState) && !"POSTED".equals(pr.queueState)) {
+                    pr.queueState = null;
+                    pr.queueStep = null;
+                }
+            });
+        } catch (Exception ignored) {
+            // the project went away meanwhile
+        }
+    }
+
+    /** Projects here that are hidden because another computer took them over or deleted them. */
+    public Set<String> hidden() {
+        return Set.copyOf(foreign);
+    }
+
+    /** Whether this computer may make / post the project now (asks the database; yes when it cannot be reached). */
+    public boolean stillMine(String id) {
+        if (foreign.contains(id)) return false;
+        if (!enabled() || backingOff()) return true;
+        try {
+            HikariDataSource ds = pool();
+            if (ds == null) return true;
+            try (Connection c = ds.getConnection();
+                 PreparedStatement ps = c.prepareStatement("SELECT machine_id, deleted, removed_by FROM posts WHERE project_id = ?")) {
+                ps.setString(1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next() && lostHere(rs.getString(1), rs.getBoolean(2), rs.getString(3))) {
+                        lose(id);
+                        return false;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            fail(e);
+        }
+        return true;
+    }
+
+    /**
+     * Takes a post over from another computer: it becomes this computer's, is made again from scratch here (the
+     * pictures stay on the other one) and the other computer stops working on it. {@code queue}: put it in the
+     * posting list (otherwise only the empty project is made). Returns the project, with the same id.
+     */
+    public synchronized Project take(String id, boolean queue) {
+        HikariDataSource ds = pool();
+        if (ds == null) throw new IllegalStateException("Chưa bật đồng bộ cơ sở dữ liệu");
+        Entry e;
+        try (Connection c = ds.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement ps = c.prepareStatement("SELECT * FROM posts WHERE project_id = ? FOR UPDATE")) {
+                ps.setString(1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) throw new NoSuchElementException("Bài này không còn trong danh sách");
+                    e = row(rs);
+                    String holder = rs.getString("machine_id");
+                    if (machineId.equals(holder) && !e.deleted && hasLocal(id) && !foreign.contains(id)) {
+                        c.rollback();
+                        return projects.get(id);
+                    }
+                }
+            }
+            if ("POSTING".equals(e.state)) throw new IllegalStateException("Bài này đang được đăng, đợi xong rồi thử lại");
+            if ("POSTED".equals(e.state) || "DRAFTED".equals(e.state))
+                throw new IllegalStateException("Bài này đã đăng rồi, không cần làm lại");
+            String state = queue ? "QUEUED" : "NONE";
+            try (PreparedStatement u = c.prepareStatement("""
+                    INSERT INTO machines (id, name, updated_at) VALUES (?, ?, now())
+                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = now()""")) {
+                u.setString(1, machineId);
+                u.setString(2, machineName());
+                u.executeUpdate();
+            }
+            try (PreparedStatement u = c.prepareStatement("""
+                    UPDATE posts SET machine_id = ?, deleted = FALSE, removed_by = NULL, state = ?, updated_at = now(),
+                        scenes = 0, has_script = FALSE, scenes_prompted = 0, scenes_with_media = 0, slides = 0,
+                        has_caption = FALSE, queue_step = NULL, queue_error = NULL
+                    WHERE project_id = ?""")) {
+                u.setString(1, machineId);
+                u.setString(2, state);
+                u.setString(3, id);
+                u.executeUpdate();
+            }
+            c.commit();
+        } catch (SQLException ex) {
+            fail(ex);
+            throw new IllegalStateException(lastError);
+        }
+        // made again from scratch: an old copy here (taken back after a hand-over) is replaced
+        if (hasLocal(id)) projects.delete(id);
+        foreign.remove(id);
+        published.remove(id);
+        Project p = new Project();
+        p.id = id;
+        p.name = e.name == null || e.name.isBlank() ? e.topic : e.name;
+        p.topic = e.topic;
+        if (e.niche != null && Project.NICHES.contains(e.niche)) p.niche = e.niche;
+        if (e.aspect != null) p.aspect = e.aspect;
+        if (e.slideRatio != null) p.slideRatio = e.slideRatio;
+        if (e.createdAt != null) p.createdAt = e.createdAt;
+        p.scenes.add(new com.mediastudio.project.Scene());
+        p.queueScenes = e.queueScenes;
+        p.queueChibi = e.queueChibi;
+        p.queueDraft = e.queueDraft;
+        if (e.queuePrivacy != null) p.queuePrivacy = e.queuePrivacy;
+        p.queueAiLabel = e.queueAiLabel;
+        p.scheduledAt = e.scheduledAt;
+        p.queueState = queue ? "QUEUED" : null;
+        projects.save(p);
+        othersAt = 0;
+        return p;
+    }
+
+    /** Deletes a post held by another computer: it disappears from every list and that computer stops on it. */
+    public void remove(String id) {
+        HikariDataSource ds = pool();
+        if (ds == null) throw new IllegalStateException("Chưa bật đồng bộ cơ sở dữ liệu");
+        try (Connection c = ds.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "UPDATE posts SET deleted = TRUE, removed_by = ?, updated_at = now() WHERE project_id = ? AND machine_id <> ?")) {
+            ps.setString(1, machineId);
+            ps.setString(2, id);
+            ps.setString(3, machineId);
+            ps.executeUpdate();
+        } catch (SQLException ex) {
+            fail(ex);
+            throw new IllegalStateException(lastError);
+        }
+        if (hasLocal(id)) foreign.add(id);
+        othersAt = 0;
     }
 
     /** This computer's own posts: the projects here plus the deleted ones the database still remembers. */
@@ -418,7 +594,7 @@ public class PostSync {
         } catch (Exception e) {
             fail(e);
         }
-        for (Project p : projects.list()) byId.put(p.id, entry(p));
+        for (Project p : projects.list()) if (!foreign.contains(p.id)) byId.put(p.id, entry(p));
         return new ArrayList<>(byId.values());
     }
 
@@ -444,6 +620,12 @@ public class PostSync {
         e.queueDraft = rs.getBoolean("queue_draft");
         e.queueStep = rs.getString("queue_step");
         e.queueError = rs.getString("queue_error");
+        e.slideRatio = rs.getString("slide_ratio");
+        int qs = rs.getInt("queue_scenes");
+        e.queueScenes = rs.wasNull() ? null : qs;
+        e.queueChibi = rs.getBoolean("queue_chibi");
+        e.queuePrivacy = rs.getString("queue_privacy");
+        e.queueAiLabel = rs.getBoolean("queue_ai_label");
         return e;
     }
 
@@ -476,6 +658,11 @@ public class PostSync {
         e.queueDraft = p.queueDraft;
         e.queueStep = p.queueStep;
         e.queueError = p.queueError;
+        e.slideRatio = p.slideRatio;
+        e.queueScenes = p.queueScenes;
+        e.queueChibi = p.queueChibi;
+        e.queuePrivacy = p.queuePrivacy;
+        e.queueAiLabel = p.queueAiLabel;
         return e;
     }
 

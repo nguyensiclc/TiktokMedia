@@ -1,5 +1,6 @@
 package com.mediastudio.sync;
 
+import com.mediastudio.project.Project;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -33,7 +34,24 @@ public class SyncController {
         out.put("machine", sync.machineName());
         out.put("error", sync.lastError());
         out.put("machines", machines);
+        out.put("hidden", sync.hidden());
         return out;
+    }
+
+    /** {queue?: true} — takes a post held by another computer: made again from scratch here, posted from here. */
+    @PostMapping("/posts/{id}/take")
+    public Project take(@PathVariable String id, @RequestBody(required = false) Map<String, Object> body) {
+        boolean queue = body == null || !Boolean.FALSE.equals(body.get("queue"));
+        Project p = sync.take(id, queue);
+        Thread.ofVirtual().start(sync::publish);
+        return p;
+    }
+
+    /** Deletes a post held by another computer, from every computer's list. */
+    @DeleteMapping("/posts/{id}")
+    public Map<String, Object> remove(@PathVariable String id) {
+        sync.remove(id);
+        return Map.of("ok", true);
     }
 
     /** {topics: ["...", ...]} → {"topic": [Match, ...]} for the topics that look already made, here or elsewhere. */

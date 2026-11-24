@@ -38,16 +38,20 @@ const FILTERS = [
 ]
 
 /**
- * The list is the same on every computer sharing the database: this computer's projects (full rows, with actions)
- * plus the other computers' posts read from the database (same columns, no picture and no actions: their files
- * live on that computer).
+ * One list for every computer sharing the database, with the same buttons. A post another computer holds is read
+ * from the database (no picture: files never travel); opening it or changing it makes it again from scratch here
+ * and this computer posts it from then on. Projects here that another computer took over or deleted are hidden.
  */
-const sync = ref({ enabled: false, machines: [] })
+const sync = ref({ enabled: false, machines: [], hidden: [] })
 const SYNC_CLS = { QUEUED: 'wait', PREPARING: 'run', READY: 'ready', POSTING: 'run', POSTED: 'ok', DRAFTED: 'ok', FAILED: 'bad', NONE: 'none' }
 const ACTIVE = ['QUEUED', 'PREPARING', 'READY', 'POSTING']
-const remoteRows = computed(() => sync.value.machines.flatMap((m) => m.posts
-  .filter((p) => !p.deleted)
-  .map((p) => ({ ...p, remote: true, machine: m.machine, key: m.machineId + '/' + p.id }))))
+const localRows = computed(() => projects.value.filter((p) => !(sync.value.hidden || []).includes(p.id)))
+const remoteRows = computed(() => {
+  const here = new Set(localRows.value.map((p) => p.id))
+  return sync.value.machines.flatMap((m) => m.posts
+    .filter((p) => !p.deleted && !here.has(p.id))
+    .map((p) => ({ ...p, remote: true })))
+})
 const filters = FILTERS
 
 async function load() {
@@ -87,11 +91,22 @@ function stateOf(p) {
   return steps(p)[4].done ? STATE.POSTED : { label: 'Ngoài danh sách', cls: 'none' }
 }
 function thumb(p) {
+  if (p.remote) return null
   if ((p.slideFiles || []).length) return fileUrl(p.id, 'output', p.slideFiles[0], p.updatedAt)
   const s = p.scenes.find((x) => x.mediaFile && !/\.mp4$/i.test(x.mediaFile))
   return s ? fileUrl(p.id, 'assets', s.mediaFile, p.updatedAt) : null
 }
-const working = (p) => p.queueState === 'PREPARING' || p.queueState === 'POSTING'
+/** Queue state of any row, as a project here has it (null = outside the list). */
+function qs(p) {
+  if (!p.remote) return p.queueState
+  if (p.state === 'DRAFTED') return 'POSTED'
+  return p.state === 'NONE' ? null : p.state
+}
+const working = (p) => qs(p) === 'PREPARING' || qs(p) === 'POSTING'
+const rowSteps = (p) => (p.remote ? remoteSteps(p) : steps(p))
+const rowState = (p) => (p.remote ? remoteState(p) : stateOf(p))
+const sceneCount = (p) => (p.remote ? p.scenes : p.scenes.length)
+const rowKey = (p) => (p.remote ? 'r/' + p.id : p.id)
 
 /** One state code for any row (same codes as the database): QUEUED … POSTED, DRAFTED, FAILED, NONE. */
 function code(r) {
@@ -117,7 +132,7 @@ function remoteState(r) {
   return { label: SYNC_STATE[r.state] || r.state, cls: SYNC_CLS[r.state] || '' }
 }
 
-const allRows = computed(() => [...projects.value, ...remoteRows.value])
+const allRows = computed(() => [...localRows.value, ...remoteRows.value])
 const rows = computed(() => {
   const order = { POSTING: 0, PREPARING: 1, READY: 2, QUEUED: 3, FAILED: 4 }
   const list = allRows.value.filter((r) => {
@@ -139,9 +154,9 @@ const rows = computed(() => {
 const counts = computed(() => ({
   queue: allRows.value.filter((r) => ACTIVE.includes(code(r))).length,
   failed: allRows.value.filter((r) => code(r) === 'FAILED').length,
-  localQueue: projects.value.filter((p) => ACTIVE.includes(p.queueState)).length, // this computer's worker only
+  localQueue: localRows.value.filter((p) => ACTIVE.includes(p.queueState)).length, // this computer's worker only
 }))
-const nextPost = computed(() => projects.value
+const nextPost = computed(() => localRows.value
   .filter((p) => ['QUEUED', 'PREPARING', 'READY'].includes(p.queueState) && p.scheduledAt)
   .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))[0])
 const currentProject = computed(() => projects.value.find((p) => p.id === status.value.current?.projectId))
@@ -161,8 +176,37 @@ function rel(iso) {
   return m > 0 ? 'còn ' + s : s + ' trước'
 }
 
+/**
+ * A post whose files are on another computer: make it here from scratch first (after asking). Returns false when
+ * the user said no or it failed. queue: keep it in the posting list.
+ */
+async function takeOver(p, queue = true) {
+  if (!p.remote) return true
+  if (['POSTED', 'DRAFTED'].includes(p.state)) {
+    await ask({ title: `"${p.name}" đã đăng rồi`, message: 'Hình của bài này không có trên máy này, nên không mở được ở đây.', confirmLabel: 'Đã hiểu', icon: 'check' })
+    return false
+  }
+  const ok = await ask({
+    title: `Làm "${p.name}" trên máy này?`,
+    message: 'Hình của bài này chưa có trên máy này. Máy này sẽ tạo lại từ đầu (kịch bản, hình, ảnh lướt, caption) và đăng bài; máy đang giữ bài sẽ dừng làm bài này.'
+      + (queue ? '' : '\nBài sẽ ra ngoài danh sách đăng.'),
+    confirmLabel: 'Tạo lại ở máy này', icon: 'reset',
+  })
+  if (!ok) return false
+  try {
+    await api.post(`/api/sync/posts/${p.id}/take`, { queue })
+    return true
+  } catch (e) {
+    error.value = e.message
+    return false
+  }
+}
 async function act(p, body) {
   try {
+    if (p.remote) {
+      if (!(await takeOver(p, body.action !== 'remove'))) return
+      if (body.action === 'remove') return load()
+    }
     const fresh = await api.post(`/api/queue/projects/${p.id}`, body)
     Object.assign(p, fresh)
     setTimeout(load, 1500)
@@ -176,7 +220,7 @@ function setTime(p, v) {
 async function postNow(p) {
   const ok = await ask({
     title: `Đăng "${p.name}" ngay?`,
-    message: p.queueState === 'READY' ? 'Bài đã sẵn sàng, sẽ được đăng trong vòng một phút.'
+    message: qs(p) === 'READY' && !p.remote ? 'Bài đã sẵn sàng, sẽ được đăng trong vòng một phút.'
       : 'Bài sẽ được chuẩn bị (kịch bản, hình, ảnh lướt, caption) rồi đăng ngay khi xong.',
     confirmLabel: 'Đăng ngay', icon: 'send',
   })
@@ -191,6 +235,15 @@ async function removeFromQueue(p) {
   if (ok) act(p, { action: 'remove' })
 }
 async function remove(p) {
+  if (p.remote) {
+    if (!(await ask({ title: `Xoá "${p.name}"?`, message: 'Bài sẽ biến mất khỏi danh sách trên mọi máy, máy đang giữ bài sẽ dừng làm bài này. Không hoàn tác được.', confirmLabel: 'Xoá', danger: true }))) return
+    try {
+      await api.del(`/api/sync/posts/${p.id}`)
+    } catch (e) {
+      error.value = e.message
+    }
+    return load()
+  }
   if (!(await ask({ title: `Xoá dự án "${p.name}"?`, message: 'Toàn bộ cảnh, hình, video và ảnh đã xuất của dự án sẽ bị xoá. Không hoàn tác được.', confirmLabel: 'Xoá dự án', danger: true }))) return
   if (working(p)) await api.post(`/api/queue/projects/${p.id}`, { action: 'remove' })
   await api.deleteProject(p.id)
@@ -217,7 +270,10 @@ function added(list) {
   filter.value = 'queue'
   load()
 }
-const open = (p) => router.push(`/project/${p.id}`)
+async function open(p) {
+  if (p.remote && !(await takeOver(p, ACTIVE.includes(p.state) || p.state === 'FAILED'))) return
+  router.push(`/project/${p.id}`)
+}
 
 onMounted(async () => { await load(); loop(); window.addEventListener('ms:refresh', load) })
 onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refresh', load) })
@@ -263,7 +319,7 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
         <b>Đang chờ.</b>
         <span v-if="nextPost" class="muted"> Bài kế tiếp: {{ nextPost.name }}, {{ fmt(nextPost.scheduledAt) }} ({{ rel(nextPost.scheduledAt) }})</span>
       </template>
-      <template v-else-if="sync.enabled"><b>Máy này không có bài nào đang chờ đăng.</b> <span class="muted">Bấm "Thêm bài" để xếp lịch trên máy này.</span></template>
+      <template v-else-if="counts.queue"><b>Máy này đang rảnh.</b> <span class="muted">Các bài trong danh sách đang được máy khác làm; mở một bài để làm nó trên máy này.</span></template>
       <template v-else><b>Không có bài nào trong danh sách.</b> <span class="muted">Bấm "Thêm bài" để xếp lịch.</span></template>
     </div>
     <button v-if="status.current" class="small" @click="showLog = !showLog">{{ showLog ? 'Ẩn nhật ký' : 'Nhật ký' }}</button>
@@ -282,54 +338,23 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
     <div class="tr th">
       <div>Bài</div><div>Tiến độ</div><div>Giờ đăng</div><div>Trạng thái</div><div />
     </div>
-    <template v-for="p in rows" :key="p.remote ? p.key : p.id">
-    <!-- another computer's post: same columns, read from the database -->
-    <div v-if="p.remote" class="tr ro" :class="{ active: ['PREPARING', 'POSTING'].includes(p.state) }"
-         :title="`Bài của máy ${p.machine}: mở và thao tác trên máy đó`">
-      <div class="post">
-        <div class="thumb"><Icon name="monitor" /></div>
-        <div class="pt">
-          <strong>{{ p.name }}</strong>
-          <span class="muted small">{{ NICHE[p.niche] || p.niche }}<template v-if="p.aspect"> · {{ p.aspect }}</template> · {{ p.scenes }} cảnh · <b class="mach">{{ p.machine }}</b></span>
-        </div>
-      </div>
-      <div class="steps">
-        <span v-for="s in remoteSteps(p)" :key="s.k" class="step" :class="{ done: s.done, part: s.part }" :title="s.k + (s.text ? ': ' + s.text : '')">
-          <Icon v-if="s.done" name="check" :size="11" />{{ s.k }}<small v-if="s.text && !s.done"> {{ s.text }}</small>
-        </span>
-      </div>
-      <div class="when">
-        <template v-if="ACTIVE.includes(p.state) || p.state === 'FAILED'">
-          <span class="small">{{ p.scheduledAt ? fmt(p.scheduledAt) : '—' }}</span>
-          <span class="muted small">{{ p.queueDraft ? 'lưu nháp khi xong' : p.scheduledAt ? rel(p.scheduledAt) : 'chưa hẹn giờ' }}</span>
-        </template>
-        <span v-else-if="p.postedAt" class="small">{{ fmt(p.postedAt) }}</span>
-        <span v-else class="muted small">—</span>
-      </div>
-      <div class="st">
-        <span class="badge" :class="remoteState(p).cls">{{ remoteState(p).label }}</span>
-        <span v-if="['PREPARING', 'POSTING'].includes(p.state) && p.queueStep" class="muted small">{{ p.queueStep }}</span>
-        <span v-if="p.state === 'FAILED' && p.queueError" class="err small" :title="p.queueError">{{ p.queueError }}</span>
-      </div>
-      <div class="acts muted small">{{ p.machine }}</div>
-    </div>
-    <div v-else class="tr" :class="{ active: working(p) }" tabindex="0"
+    <div v-for="p in rows" :key="rowKey(p)" class="tr" :class="{ active: working(p) }" tabindex="0"
          @click="open(p)" @keyup.enter="open(p)">
       <div class="post">
         <div class="thumb"><img v-if="thumb(p)" :src="thumb(p)" alt="" loading="lazy" /><Icon v-else name="image" /></div>
         <div class="pt">
           <strong>{{ p.name }}</strong>
-          <span class="muted small">{{ NICHE[p.niche] || p.niche }} · {{ p.aspect }} · {{ p.scenes.length }} cảnh<template v-if="sync.enabled"> · <b class="mach">máy này</b></template></span>
+          <span class="muted small">{{ NICHE[p.niche] || p.niche }}<template v-if="p.aspect"> · {{ p.aspect }}</template> · {{ sceneCount(p) }} cảnh</span>
         </div>
       </div>
       <div class="steps">
-        <span v-for="s in steps(p)" :key="s.k" class="step" :class="{ done: s.done, part: s.part }" :title="s.k + (s.text ? ': ' + s.text : '')">
+        <span v-for="s in rowSteps(p)" :key="s.k" class="step" :class="{ done: s.done, part: s.part }" :title="s.k + (s.text ? ': ' + s.text : '')">
           <Icon v-if="s.done" name="check" :size="11" />{{ s.k }}<small v-if="s.text && !s.done"> {{ s.text }}</small>
         </span>
       </div>
       <div class="when" @click.stop>
-        <template v-if="p.queueState && p.queueState !== 'POSTED'">
-          <input type="datetime-local" :value="toLocalInput(p.scheduledAt)" :disabled="p.queueState === 'POSTING'"
+        <template v-if="qs(p) && qs(p) !== 'POSTED'">
+          <input type="datetime-local" :value="toLocalInput(p.scheduledAt)" :disabled="qs(p) === 'POSTING'"
                  aria-label="Giờ đăng" @change="(e) => setTime(p, e.target.value)" />
           <span class="muted small">{{ p.queueDraft ? 'lưu nháp khi xong' : p.scheduledAt ? rel(p.scheduledAt) : 'chưa hẹn giờ' }}</span>
         </template>
@@ -337,19 +362,18 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
         <span v-else class="muted small">—</span>
       </div>
       <div class="st">
-        <span class="badge" :class="stateOf(p).cls">{{ stateOf(p).label }}</span>
+        <span class="badge" :class="rowState(p).cls">{{ rowState(p).label }}</span>
         <span v-if="working(p) && p.queueStep" class="muted small">{{ p.queueStep }}</span>
-        <span v-if="p.queueState === 'FAILED' && p.queueError" class="err small" :title="p.queueError">{{ p.queueError }}</span>
+        <span v-if="qs(p) === 'FAILED' && p.queueError" class="err small" :title="p.queueError">{{ p.queueError }}</span>
       </div>
       <div class="acts" @click.stop>
-        <button v-if="p.queueState === 'FAILED'" class="small" @click="act(p, { action: 'retry' })">Thử lại</button>
-        <button v-if="p.queueState && !['POSTED', 'POSTING'].includes(p.queueState)" class="small" title="Đăng ngay khi sẵn sàng" @click="postNow(p)"><Icon name="send" :size="13" /> Đăng ngay</button>
-        <button v-if="!p.queueState" class="small" @click="act(p, { action: 'queue' })"><Icon name="plus" :size="13" /> Vào danh sách</button>
-        <button v-if="p.queueState && p.queueState !== 'POSTED'" class="small icon" title="Bỏ khỏi danh sách" aria-label="Bỏ khỏi danh sách" @click="removeFromQueue(p)"><Icon name="x" :size="14" /></button>
-        <button class="small icon danger" title="Xoá dự án" aria-label="Xoá dự án" @click="remove(p)"><Icon name="trash" :size="14" /></button>
+        <button v-if="qs(p) === 'FAILED'" class="small" @click="act(p, { action: 'retry' })">Thử lại</button>
+        <button v-if="qs(p) && !['POSTED', 'POSTING'].includes(qs(p))" class="small" title="Đăng ngay khi sẵn sàng" @click="postNow(p)"><Icon name="send" :size="13" /> Đăng ngay</button>
+        <button v-if="!qs(p)" class="small" @click="act(p, { action: 'queue' })"><Icon name="plus" :size="13" /> Vào danh sách</button>
+        <button v-if="qs(p) && qs(p) !== 'POSTED'" class="small icon" title="Bỏ khỏi danh sách" aria-label="Bỏ khỏi danh sách" @click="removeFromQueue(p)"><Icon name="x" :size="14" /></button>
+        <button class="small icon danger" title="Xoá" aria-label="Xoá" @click="remove(p)"><Icon name="trash" :size="14" /></button>
       </div>
     </div>
-    </template>
     <div v-if="!rows.length" class="empty muted">Không có bài nào ở mục này.</div>
   </div>
 </template>
@@ -411,9 +435,6 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
 .acts { display: flex; gap: 4px; justify-content: flex-end; cursor: default; }
 .acts .icon { width: 28px; padding: 0; justify-content: center; }
 .empty { padding: 24px; text-align: center; }
-.tr.ro { cursor: default; }
-.tr.ro .thumb { opacity: .7; }
-.mach { font-weight: 600; color: var(--text); }
 .sync-err { padding: 10px 14px; color: #D92D20; border-bottom: 1px solid var(--border); }
 
 @media (max-width: 1100px) {

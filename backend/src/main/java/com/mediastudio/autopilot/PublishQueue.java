@@ -5,6 +5,7 @@ import com.mediastudio.job.JobService;
 import com.mediastudio.project.Project;
 import com.mediastudio.project.ProjectService;
 import com.mediastudio.settings.SettingsService;
+import com.mediastudio.sync.PostSync;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
@@ -34,12 +35,14 @@ public class PublishQueue {
     private final JobService jobs;
     private final AutopilotService autopilot;
     private final SettingsService settings;
+    private final PostSync sync;
     private volatile Job current;
     private volatile String currentProject;
     private volatile boolean paused;
     private volatile boolean stop;
 
-    public PublishQueue(ProjectService projects, JobService jobs, AutopilotService autopilot, SettingsService settings) {
+    public PublishQueue(ProjectService projects, JobService jobs, AutopilotService autopilot, SettingsService settings, PostSync sync) {
+        this.sync = sync;
         this.projects = projects;
         this.jobs = jobs;
         this.autopilot = autopilot;
@@ -106,13 +109,16 @@ public class PublishQueue {
     public synchronized void tick() {
         if (paused || current() != null) return;
         Instant now = Instant.now();
-        List<Project> all = projects.list();
+        // posts another computer took over or deleted are not made or posted here
+        Set<String> hidden = sync.hidden();
+        List<Project> all = projects.list().stream().filter(p -> !hidden.contains(p.id)).toList();
         Optional<Project> due = all.stream()
                 .filter(p -> "READY".equals(p.queueState)
                         && (p.queueDraft || (p.scheduledAt != null && !p.scheduledAt.isAfter(now))))
                 .min(Comparator.comparing((Project p) -> p.scheduledAt == null ? Instant.MIN : p.scheduledAt));
         if (due.isPresent()) {
             String id = due.get().id;
+            if (!sync.stillMine(id)) return;
             set(id, "POSTING", null);
             currentProject = id;
             current = jobs.start("autopilot", (due.get().queueDraft ? "Lưu nháp: " : "Đăng: ") + due.get().name, id, null, ctx -> {
@@ -131,6 +137,7 @@ public class PublishQueue {
                 .min(Comparator.comparing((Project p) -> p.scheduledAt == null ? Instant.MAX : p.scheduledAt));
         if (next.isPresent()) {
             String id = next.get().id;
+            if (!sync.stillMine(id)) return;
             set(id, "PREPARING", null);
             currentProject = id;
             current = jobs.start("autopilot", "Chuẩn bị: " + next.get().name, id, null, ctx -> {
