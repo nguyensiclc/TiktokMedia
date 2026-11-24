@@ -37,13 +37,18 @@ const FILTERS = [
   { id: 'none', label: 'Ngoài danh sách' },
 ]
 
-/** Posts of the other computers sharing the list through a synced folder (names and states only). */
+/**
+ * The list is the same on every computer sharing the database: this computer's projects (full rows, with actions)
+ * plus the other computers' posts read from the database (same columns, no picture and no actions: their files
+ * live on that computer).
+ */
 const sync = ref({ enabled: false, machines: [] })
 const SYNC_CLS = { QUEUED: 'wait', PREPARING: 'run', READY: 'ready', POSTING: 'run', POSTED: 'ok', DRAFTED: 'ok', FAILED: 'bad', NONE: 'none' }
-const otherRows = computed(() => sync.value.machines
-  .flatMap((m) => m.posts.map((p) => ({ ...p, machine: m.machine, key: m.machineId + '/' + p.id })))
-  .sort((a, b) => new Date(b.postedAt || b.scheduledAt || b.createdAt || 0) - new Date(a.postedAt || a.scheduledAt || a.createdAt || 0)))
-const filters = computed(() => (sync.value.enabled ? [...FILTERS, { id: 'others', label: 'Máy khác' }] : FILTERS))
+const ACTIVE = ['QUEUED', 'PREPARING', 'READY', 'POSTING']
+const remoteRows = computed(() => sync.value.machines.flatMap((m) => m.posts
+  .filter((p) => !p.deleted)
+  .map((p) => ({ ...p, remote: true, machine: m.machine, key: m.machineId + '/' + p.id }))))
+const filters = FILTERS
 
 async function load() {
   try {
@@ -88,26 +93,53 @@ function thumb(p) {
 }
 const working = (p) => p.queueState === 'PREPARING' || p.queueState === 'POSTING'
 
+/** One state code for any row (same codes as the database): QUEUED … POSTED, DRAFTED, FAILED, NONE. */
+function code(r) {
+  if (r.remote) return r.state
+  if (r.queueState) return r.queueDraft && r.queueState === 'POSTED' ? 'DRAFTED' : r.queueState
+  const ts = r.tiktokPosts || []
+  if (ts.some((t) => t.status === 'POSTED_VIA_STUDIO')) return 'POSTED'
+  return ts.some((t) => t.status === 'DRAFT_VIA_STUDIO') ? 'DRAFTED' : 'NONE'
+}
+/** Steps of another computer's post, from the progress it sent to the database. */
+function remoteSteps(r) {
+  return [
+    { k: 'Kịch bản', done: r.hasScript, text: r.hasScript ? r.scenes + ' cảnh' : '' },
+    { k: 'Hình', done: r.hasScript && r.scenesPrompted > 0 && r.scenesWithMedia >= r.scenesPrompted,
+      part: r.scenesWithMedia > 0 && r.scenesWithMedia < r.scenesPrompted, text: r.hasScript ? `${r.scenesWithMedia}/${r.scenesPrompted}` : '' },
+    { k: 'Ảnh lướt', done: r.slides > 0, text: r.slides ? r.slides + ' ảnh' : '' },
+    { k: 'Caption', done: r.hasCaption },
+    { k: r.queueDraft ? 'Nháp' : 'Đăng', done: ['POSTED', 'DRAFTED'].includes(r.state) },
+  ]
+}
+function remoteState(r) {
+  if (r.queueDraft && r.state === 'POSTING') return { label: 'Đang lưu nháp', cls: 'run' }
+  return { label: SYNC_STATE[r.state] || r.state, cls: SYNC_CLS[r.state] || '' }
+}
+
+const allRows = computed(() => [...projects.value, ...remoteRows.value])
 const rows = computed(() => {
   const order = { POSTING: 0, PREPARING: 1, READY: 2, QUEUED: 3, FAILED: 4 }
-  const list = projects.value.filter((p) => {
-    if (filter.value === 'queue') return ['QUEUED', 'PREPARING', 'READY', 'POSTING'].includes(p.queueState)
-    if (filter.value === 'posted') return stateOf(p) === STATE.POSTED
-    if (filter.value === 'failed') return p.queueState === 'FAILED'
-    if (filter.value === 'none') return !p.queueState
+  const list = allRows.value.filter((r) => {
+    const c = code(r)
+    if (filter.value === 'queue') return ACTIVE.includes(c)
+    if (filter.value === 'posted') return c === 'POSTED' || c === 'DRAFTED'
+    if (filter.value === 'failed') return c === 'FAILED'
+    if (filter.value === 'none') return c === 'NONE'
     return true
   })
-  const t = (p) => (p.scheduledAt ? new Date(p.scheduledAt).getTime() : Infinity)
+  const t = (r) => (r.scheduledAt ? new Date(r.scheduledAt).getTime() : Infinity)
   return [...list].sort((a, b) => {
-    const oa = order[a.queueState] ?? 9, ob = order[b.queueState] ?? 9
+    const oa = order[code(a)] ?? 9, ob = order[code(b)] ?? 9
     if (oa !== ob) return oa - ob
     if (oa <= 4) return t(a) - t(b)
-    return new Date(b.postedAt || b.updatedAt) - new Date(a.postedAt || a.updatedAt)
+    return new Date(b.postedAt || b.updatedAt || 0) - new Date(a.postedAt || a.updatedAt || 0)
   })
 })
 const counts = computed(() => ({
-  queue: projects.value.filter((p) => ['QUEUED', 'PREPARING', 'READY', 'POSTING'].includes(p.queueState)).length,
-  failed: projects.value.filter((p) => p.queueState === 'FAILED').length,
+  queue: allRows.value.filter((r) => ACTIVE.includes(code(r))).length,
+  failed: allRows.value.filter((r) => code(r) === 'FAILED').length,
+  localQueue: projects.value.filter((p) => ACTIVE.includes(p.queueState)).length, // this computer's worker only
 }))
 const nextPost = computed(() => projects.value
   .filter((p) => ['QUEUED', 'PREPARING', 'READY'].includes(p.queueState) && p.scheduledAt)
@@ -227,10 +259,11 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
         <b>{{ status.current.title }}</b>
         <span v-if="currentProject?.queueStep" class="muted"> · {{ currentProject.queueStep }}</span>
       </template>
-      <template v-else-if="counts.queue">
+      <template v-else-if="counts.localQueue">
         <b>Đang chờ.</b>
         <span v-if="nextPost" class="muted"> Bài kế tiếp: {{ nextPost.name }}, {{ fmt(nextPost.scheduledAt) }} ({{ rel(nextPost.scheduledAt) }})</span>
       </template>
+      <template v-else-if="sync.enabled"><b>Máy này không có bài nào đang chờ đăng.</b> <span class="muted">Bấm "Thêm bài" để xếp lịch trên máy này.</span></template>
       <template v-else><b>Không có bài nào trong danh sách.</b> <span class="muted">Bấm "Thêm bài" để xếp lịch.</span></template>
     </div>
     <button v-if="status.current" class="small" @click="showLog = !showLog">{{ showLog ? 'Ẩn nhật ký' : 'Nhật ký' }}</button>
@@ -244,41 +277,49 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
     </button>
   </div>
 
-  <div v-if="filter === 'others'" class="table panel">
-    <div v-if="sync.error" class="sync-err small">{{ sync.error }}</div>
-    <div class="tr th others">
-      <div>Bài</div><div>Máy</div><div>Giờ đăng</div><div>Trạng thái</div>
-    </div>
-    <div v-for="p in otherRows" :key="p.key" class="tr others ro">
-      <div class="pt">
-        <strong>{{ p.name }}</strong>
-        <span class="muted small">{{ NICHE[p.niche] || p.niche }}<template v-if="p.deleted"> · dự án đã xoá</template></span>
-      </div>
-      <div class="small">{{ p.machine }}</div>
-      <div class="small">
-        <template v-if="p.postedAt">{{ fmt(p.postedAt) }}</template>
-        <template v-else-if="p.scheduledAt && p.state !== 'NONE'">{{ fmt(p.scheduledAt) }}</template>
-        <span v-else class="muted">—</span>
-      </div>
-      <div><span class="badge" :class="SYNC_CLS[p.state]">{{ SYNC_STATE[p.state] || p.state }}</span></div>
-    </div>
-    <div v-if="!otherRows.length" class="empty muted">
-      Chưa thấy bài của máy nào khác. Trên máy kia, vào Cài đặt → "Đồng bộ danh sách giữa các máy" và dán cùng chuỗi kết nối
-      (cơ sở dữ liệu <code>{{ sync.database }}</code>).
-    </div>
-  </div>
-
-  <div v-else class="table panel">
+  <div class="table panel">
+    <div v-if="sync.enabled && sync.error" class="sync-err small">{{ sync.error }}</div>
     <div class="tr th">
       <div>Bài</div><div>Tiến độ</div><div>Giờ đăng</div><div>Trạng thái</div><div />
     </div>
-    <div v-for="p in rows" :key="p.id" class="tr" :class="{ active: working(p) }" tabindex="0"
+    <template v-for="p in rows" :key="p.remote ? p.key : p.id">
+    <!-- another computer's post: same columns, read from the database -->
+    <div v-if="p.remote" class="tr ro" :class="{ active: ['PREPARING', 'POSTING'].includes(p.state) }"
+         :title="`Bài của máy ${p.machine}: mở và thao tác trên máy đó`">
+      <div class="post">
+        <div class="thumb"><Icon name="monitor" /></div>
+        <div class="pt">
+          <strong>{{ p.name }}</strong>
+          <span class="muted small">{{ NICHE[p.niche] || p.niche }}<template v-if="p.aspect"> · {{ p.aspect }}</template> · {{ p.scenes }} cảnh · <b class="mach">{{ p.machine }}</b></span>
+        </div>
+      </div>
+      <div class="steps">
+        <span v-for="s in remoteSteps(p)" :key="s.k" class="step" :class="{ done: s.done, part: s.part }" :title="s.k + (s.text ? ': ' + s.text : '')">
+          <Icon v-if="s.done" name="check" :size="11" />{{ s.k }}<small v-if="s.text && !s.done"> {{ s.text }}</small>
+        </span>
+      </div>
+      <div class="when">
+        <template v-if="ACTIVE.includes(p.state) || p.state === 'FAILED'">
+          <span class="small">{{ p.scheduledAt ? fmt(p.scheduledAt) : '—' }}</span>
+          <span class="muted small">{{ p.queueDraft ? 'lưu nháp khi xong' : p.scheduledAt ? rel(p.scheduledAt) : 'chưa hẹn giờ' }}</span>
+        </template>
+        <span v-else-if="p.postedAt" class="small">{{ fmt(p.postedAt) }}</span>
+        <span v-else class="muted small">—</span>
+      </div>
+      <div class="st">
+        <span class="badge" :class="remoteState(p).cls">{{ remoteState(p).label }}</span>
+        <span v-if="['PREPARING', 'POSTING'].includes(p.state) && p.queueStep" class="muted small">{{ p.queueStep }}</span>
+        <span v-if="p.state === 'FAILED' && p.queueError" class="err small" :title="p.queueError">{{ p.queueError }}</span>
+      </div>
+      <div class="acts muted small">{{ p.machine }}</div>
+    </div>
+    <div v-else class="tr" :class="{ active: working(p) }" tabindex="0"
          @click="open(p)" @keyup.enter="open(p)">
       <div class="post">
         <div class="thumb"><img v-if="thumb(p)" :src="thumb(p)" alt="" loading="lazy" /><Icon v-else name="image" /></div>
         <div class="pt">
           <strong>{{ p.name }}</strong>
-          <span class="muted small">{{ NICHE[p.niche] || p.niche }} · {{ p.aspect }} · {{ p.scenes.length }} cảnh</span>
+          <span class="muted small">{{ NICHE[p.niche] || p.niche }} · {{ p.aspect }} · {{ p.scenes.length }} cảnh<template v-if="sync.enabled"> · <b class="mach">máy này</b></template></span>
         </div>
       </div>
       <div class="steps">
@@ -308,6 +349,7 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
         <button class="small icon danger" title="Xoá dự án" aria-label="Xoá dự án" @click="remove(p)"><Icon name="trash" :size="14" /></button>
       </div>
     </div>
+    </template>
     <div v-if="!rows.length" class="empty muted">Không có bài nào ở mục này.</div>
   </div>
 </template>
@@ -369,18 +411,15 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('ms:refr
 .acts { display: flex; gap: 4px; justify-content: flex-end; cursor: default; }
 .acts .icon { width: 28px; padding: 0; justify-content: center; }
 .empty { padding: 24px; text-align: center; }
-.tr.others { grid-template-columns: minmax(220px, 3fr) minmax(120px, 1fr) minmax(150px, 1.2fr) minmax(120px, 1fr); }
 .tr.ro { cursor: default; }
+.tr.ro .thumb { opacity: .7; }
+.mach { font-weight: 600; color: var(--text); }
 .sync-err { padding: 10px 14px; color: #D92D20; border-bottom: 1px solid var(--border); }
 
 @media (max-width: 1100px) {
   .tr { grid-template-columns: 1fr auto; grid-template-areas: "post acts" "steps steps" "when st"; }
   .th { display: none; }
   .post { grid-area: post; } .steps { grid-area: steps; } .when { grid-area: when; } .st { grid-area: st; align-items: flex-end; } .acts { grid-area: acts; }
-}
-@media (max-width: 1100px) {
-  .tr.others { grid-template-columns: 1fr auto; grid-template-areas: none; }
-  .tr.others > :nth-child(2), .tr.others > :nth-child(3) { font-size: 12px; color: var(--muted); }
 }
 @media (max-width: 820px) { .manual { flex-wrap: wrap; } .manual > * { flex: 1 1 100%; } .head { flex-wrap: wrap; } }
 </style>

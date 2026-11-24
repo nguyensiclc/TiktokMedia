@@ -30,7 +30,7 @@ import java.util.*;
  */
 @Service
 public class PostSync {
-    private static final long OTHERS_CACHE_MS = 15_000;
+    private static final long OTHERS_CACHE_MS = 5_000;
 
     /** One post as the other computers see it. */
     public static class Entry {
@@ -45,6 +45,25 @@ public class PostSync {
         public Instant createdAt;
         public Instant updatedAt;
         public boolean deleted;
+        // progress (V2), so every computer shows the same steps
+        public String aspect;
+        public int scenes;
+        public boolean hasScript;
+        public int scenesPrompted;
+        public int scenesWithMedia;
+        public int slides;
+        public boolean hasCaption;
+        public boolean queueDraft;
+        public String queueStep;
+        public String queueError;
+
+        /** What is compared to know whether this post changed since it was last sent. */
+        String signature() {
+            return String.join("|", String.valueOf(name), String.valueOf(topic), String.valueOf(niche), state,
+                    String.valueOf(scheduledAt), String.valueOf(postedAt), String.valueOf(aspect),
+                    scenes + "," + hasScript + "," + scenesPrompted + "," + scenesWithMedia + "," + slides + "," + hasCaption
+                            + "," + queueDraft, String.valueOf(queueStep), String.valueOf(queueError));
+        }
     }
 
     /** The posts of one computer. */
@@ -255,9 +274,7 @@ public class PostSync {
         for (Project p : list) {
             ids.add(p.id);
             Entry e = entry(p);
-            String sig = String.join("|", e.name, String.valueOf(e.topic), String.valueOf(e.niche), e.state,
-                    String.valueOf(e.scheduledAt), String.valueOf(e.postedAt));
-            if (!sig.equals(published.get(p.id))) changed.add(e);
+            if (!e.signature().equals(published.get(p.id))) changed.add(e);
         }
         String name = machineName();
         boolean idsChanged = !ids.equals(publishedIds);
@@ -277,12 +294,19 @@ public class PostSync {
             if (!changed.isEmpty()) {
                 try (PreparedStatement ps = c.prepareStatement("""
                         INSERT INTO posts (machine_id, project_id, name, topic, niche, state, scheduled_at, posted_at,
-                                           created_at, updated_at, deleted)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)
+                                           created_at, updated_at, deleted,
+                                           aspect, scenes, has_script, scenes_prompted, scenes_with_media, slides,
+                                           has_caption, queue_draft, queue_step, queue_error)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT (machine_id, project_id) DO UPDATE SET
                             name = EXCLUDED.name, topic = EXCLUDED.topic, niche = EXCLUDED.niche, state = EXCLUDED.state,
                             scheduled_at = EXCLUDED.scheduled_at, posted_at = EXCLUDED.posted_at,
-                            created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at, deleted = FALSE""")) {
+                            created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at, deleted = FALSE,
+                            aspect = EXCLUDED.aspect, scenes = EXCLUDED.scenes, has_script = EXCLUDED.has_script,
+                            scenes_prompted = EXCLUDED.scenes_prompted, scenes_with_media = EXCLUDED.scenes_with_media,
+                            slides = EXCLUDED.slides, has_caption = EXCLUDED.has_caption,
+                            queue_draft = EXCLUDED.queue_draft, queue_step = EXCLUDED.queue_step,
+                            queue_error = EXCLUDED.queue_error""")) {
                     for (Entry e : changed) {
                         ps.setString(1, machineId);
                         ps.setString(2, e.id);
@@ -294,6 +318,16 @@ public class PostSync {
                         ps.setTimestamp(8, ts(e.postedAt));
                         ps.setTimestamp(9, ts(e.createdAt));
                         ps.setTimestamp(10, ts(e.updatedAt));
+                        ps.setString(11, e.aspect);
+                        ps.setInt(12, e.scenes);
+                        ps.setBoolean(13, e.hasScript);
+                        ps.setInt(14, e.scenesPrompted);
+                        ps.setInt(15, e.scenesWithMedia);
+                        ps.setInt(16, e.slides);
+                        ps.setBoolean(17, e.hasCaption);
+                        ps.setBoolean(18, e.queueDraft);
+                        ps.setString(19, e.queueStep);
+                        ps.setString(20, e.queueError);
                         ps.addBatch();
                     }
                     ps.executeBatch();
@@ -308,10 +342,8 @@ public class PostSync {
                 }
             }
             c.commit();
-            for (Entry e : changed) {
-                published.put(e.id, String.join("|", e.name, String.valueOf(e.topic), String.valueOf(e.niche), e.state,
-                        String.valueOf(e.scheduledAt), String.valueOf(e.postedAt)));
-            }
+            for (Entry e : changed) published.put(e.id, e.signature());
+            othersAt = 0;
             publishedIds = ids;
             publishedName = name;
             lastError = null;
@@ -402,6 +434,16 @@ public class PostSync {
         e.createdAt = instant(rs.getTimestamp("created_at"));
         e.updatedAt = instant(rs.getTimestamp("updated_at"));
         e.deleted = rs.getBoolean("deleted");
+        e.aspect = rs.getString("aspect");
+        e.scenes = rs.getInt("scenes");
+        e.hasScript = rs.getBoolean("has_script");
+        e.scenesPrompted = rs.getInt("scenes_prompted");
+        e.scenesWithMedia = rs.getInt("scenes_with_media");
+        e.slides = rs.getInt("slides");
+        e.hasCaption = rs.getBoolean("has_caption");
+        e.queueDraft = rs.getBoolean("queue_draft");
+        e.queueStep = rs.getString("queue_step");
+        e.queueError = rs.getString("queue_error");
         return e;
     }
 
@@ -424,6 +466,16 @@ public class PostSync {
         e.postedAt = p.postedAt;
         e.createdAt = p.createdAt;
         e.updatedAt = p.updatedAt;
+        e.aspect = p.aspect;
+        e.scenes = p.scenes.size();
+        e.hasScript = p.scenes.stream().anyMatch(s -> s.narration != null && !s.narration.isBlank());
+        e.scenesPrompted = (int) p.scenes.stream().filter(s -> s.imagePrompt != null && !s.imagePrompt.isBlank()).count();
+        e.scenesWithMedia = (int) p.scenes.stream().filter(s -> s.mediaFile != null).count();
+        e.slides = p.slideFiles == null ? 0 : p.slideFiles.size();
+        e.hasCaption = p.tiktokCaption != null && !p.tiktokCaption.isBlank();
+        e.queueDraft = p.queueDraft;
+        e.queueStep = p.queueStep;
+        e.queueError = p.queueError;
         return e;
     }
 
