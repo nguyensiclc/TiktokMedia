@@ -220,14 +220,18 @@ public class FlowApiService {
             for (String sid : part) {
                 Scene sc = p.scene(sid);
                 List<String> r = new ArrayList<>();
+                Path photo = AgentPrompts.scenePhoto(dir, sc);
+                if (photo != null) r.add(photo.toAbsolutePath().toString());
                 for (CharacterRef c : AgentPrompts.sceneCharacters(p, sc)) {
                     Path f = dir.resolve("assets").resolve(c.file);
                     if (Files.exists(f)) r.add(f.toAbsolutePath().toString());
                 }
                 String prompt = AgentPrompts.textOnlyImagePrompt(p, sc);
-                if (!r.isEmpty()) prompt += "\nThe attached reference image(s) show how these characters look: keep the same"
+                if (photo != null) prompt += "\nThe FIRST attached image is the PHOTO REFERENCE. " + AgentPrompts.PHOTO_RULE;
+                if (r.size() > (photo != null ? 1 : 0)) prompt += "\nThe " + (photo != null ? "other " : "")
+                        + "attached reference image(s) show how these characters look: keep the same"
                         + " face, hair, costume, armour and colours, but draw a completely new picture of THIS scene"
-                        + " (new pose, action, setting and framing; do not copy the reference background).";
+                        + " (new pose, action, setting and framing; do not copy the character images' background).";
                 prompts.add(prompt);
                 refs.add(r);
                 nums.add(p.scenes.indexOf(sc) + 1);

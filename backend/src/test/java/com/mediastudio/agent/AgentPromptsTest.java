@@ -121,4 +121,53 @@ class AgentPromptsTest {
         String img = AgentPrompts.textOnlyImagePrompt(p, s);
         org.junit.jupiter.api.Assertions.assertTrue(img.startsWith("VISUAL STYLE") && !img.contains("Draw every character"));
     }
+
+    @Test
+    void historyPromptAsksForRealPhotosOnlyForModernWars() {
+        String full = AgentPrompts.storyboard("Điện Biên Phủ 1954", 34, "vi", "", "9:16", List.of(), false, "history");
+        org.junit.jupiter.api.Assertions.assertTrue(full.contains("\"modern\"") && full.contains("photoPage") && !full.contains("photoQuery")
+                && full.contains("REAL PHOTOS"));
+        // Appending scenes keeps the photo instructions (they sit after the JSON schema).
+        String more = AgentPrompts.storyboard("Điện Biên Phủ 1954", 5, "vi", "", "9:16", List.of(), true, "history");
+        org.junit.jupiter.api.Assertions.assertTrue(more.contains("REAL PHOTOS"));
+        // Other niches never ask for photos.
+        String story = AgentPrompts.storyboard("Cô bé quàng khăn đỏ", 10, "vi", "", "9:16", List.of(), false, "story");
+        org.junit.jupiter.api.Assertions.assertFalse(story.contains("REAL PHOTOS"));
+    }
+
+    @Test
+    void scenePhotoOnlyWhenFileExists(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        Scene s = new Scene();
+        org.junit.jupiter.api.Assertions.assertNull(AgentPrompts.scenePhoto(dir, s));
+        s.refPhoto = "scene-" + s.id + "-ref.jpg";
+        org.junit.jupiter.api.Assertions.assertNull(AgentPrompts.scenePhoto(dir, s));
+        java.nio.file.Files.createDirectories(dir.resolve("assets"));
+        java.nio.file.Files.write(dir.resolve("assets").resolve(s.refPhoto), new byte[]{1});
+        org.junit.jupiter.api.Assertions.assertNotNull(AgentPrompts.scenePhoto(dir, s));
+    }
+
+    @Test
+    void refPhotoUrlsMustBePublic() {
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.isWebUrl("http://localhost:8080/x.jpg"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.isWebUrl("http://192.168.1.5/x.jpg"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.isWebUrl("file:///C:/x.jpg"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.isWebUrl(""));
+    }
+
+    @Test
+    void refPhotosOnlyFromReputablePagesThatShowThem() {
+        org.junit.jupiter.api.Assertions.assertTrue(RefPhotoService.trusted("https://en.wikipedia.org/wiki/Battle_of_Dien_Bien_Phu"));
+        org.junit.jupiter.api.Assertions.assertTrue(RefPhotoService.trusted("https://commons.wikimedia.org/wiki/File:X.jpg"));
+        org.junit.jupiter.api.Assertions.assertTrue(RefPhotoService.trusted("https://vnexpress.net/abc.html"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.trusted("https://www.pinterest.com/pin/1"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.trusted("https://fakewikipedia.org/x"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.trusted("https://wikipedia.org.evil.com/x"));
+        String html = "<img src=\"//upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Victory_in_Battle_of_Dien_Bien_Phu.jpg/"
+                + "220px-Victory_in_Battle_of_Dien_Bien_Phu.jpg\">";
+        org.junit.jupiter.api.Assertions.assertTrue(RefPhotoService.pageShows(html,
+                "https://upload.wikimedia.org/wikipedia/commons/a/ae/Victory_in_Battle_of_Dien_Bien_Phu.jpg"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.pageShows(html,
+                "https://upload.wikimedia.org/wikipedia/commons/1/11/Some_other_photo_1954.jpg"));
+        org.junit.jupiter.api.Assertions.assertFalse(RefPhotoService.pageShows("<img src=\"/1.jpg\">", "https://vnexpress.net/1.jpg"));
+    }
 }

@@ -4,6 +4,7 @@ import com.mediastudio.project.CharacterRef;
 import com.mediastudio.project.Project;
 import com.mediastudio.project.Scene;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -410,6 +411,59 @@ final class AgentPrompts {
      */
     public static final int MAX_SCENES = com.mediastudio.project.Project.MAX_SCENES;
 
+    /**
+     * History niche, wars of the photography era: Claude finds a real, verified photo for the scenes that have one,
+     * the app downloads it and sends it to the image generator as a reference. Scenes without a sure photo get none.
+     * Older history skips all of this.
+     * No '%' in here: it is part of a String.formatted() template.
+     */
+    static final String MODERN_PHOTOS = """
+
+            REAL PHOTOS (MODERN history only):
+              - First decide "modern": true when the events happened in the age of photography (from about the 1850s:
+                e.g. the resistance against French colonial rule, the August Revolution, Điện Biên Phủ, the war against
+                the US, the 1979 border war). Older history (Hai Bà Trưng, Bạch Đằng, the Mongol invasions, Tây Sơn…)
+                -> "modern": false, leave photoUrl / photoPage out entirely and skip the rest of this section.
+              - When modern, the look rules above that speak of FEUDAL Vietnam do not apply: ERA, VIETNAMESE LOOK and
+                every imagePrompt use the real look of that period as photos show it (uniforms, helmets, insignia,
+                weapons, vehicles, aircraft, ships, buildings, streets, civilian clothing). The rules about faces,
+                heroes, mood and no gore still apply.
+              - For scenes that show a real, photographed moment, person, place, weapon or vehicle, look for a REAL
+                PHOTO on the web as a visual reference, so the picture keeps true details instead of guesses. You may
+                spend up to 12 more WebSearch / WebFetch calls on this.
+              - ONLY REPUTABLE SOURCES: Wikimedia Commons / Wikipedia, national archives and government sites, museums,
+                universities, encyclopedias (Britannica), and major news agencies or newspapers (TTXVN / VNA, Nhân Dân,
+                Quân đội nhân dân, VnExpress, Tuổi Trẻ, Thanh Niên, AP, Reuters, AFP, BBC). Never blogs, forums, social
+                media, Pinterest, stock-photo or wallpaper sites, AI-image sites or unknown pages.
+              - ONLY WHEN SURE: add a photo to a scene only if all of these are true:
+                  * you fetched the page and its caption or text says the photo shows THIS exact event, person, place
+                    or equipment (not just the same war or the same kind of thing);
+                  * it is a real photo of that time (no maps, posters, documents, charts, paintings, drawings,
+                    re-enactments, film stills, modern tourist photos, AI images);
+                  * you saw the direct image address in that page.
+                If anything is uncertain, the photo is not found, or the source is not reputable: leave photoUrl and
+                photoPage OUT for that scene. Many scenes will have no photo and that is fine; a wrong photo is far
+                worse than none. Never pick a "close enough" photo, never guess or build an address.
+                  photoUrl: the DIRECT address of the image file (.jpg / .jpeg / .png, e.g.
+                    https://upload.wikimedia.org/wikipedia/commons/...), exactly as it appears in the page.
+                  photoPage: the reputable page where you found it (always required with photoUrl).
+                One photo may serve several scenes if it truly shows each of them.
+              - imagePrompt still describes the whole scene in words: the photo only supplies real details; the
+                picture is drawn new, in the video's art style.
+            """;
+
+    /** Added to an image prompt when the scene's real photo is attached as a reference. */
+    static final String PHOTO_RULE = "The PHOTO REFERENCE is a real historical photo of this moment: keep its true details"
+            + " (uniforms, helmets, weapons, vehicles, buildings, landscape) and its general layout, but redraw it as a new"
+            + " picture in this video's art style, following the scene description. Do not copy it as a photo; no text.";
+
+    /** The scene's downloaded reference photo, or null when it has none (or the file is gone). */
+    static Path scenePhoto(Path projectDir, Scene s) {
+        if (s == null || s.refPhoto == null || s.refPhoto.isBlank()) return null;
+        Path f = projectDir.resolve("assets").resolve(s.refPhoto);
+        return Files.exists(f) ? f : null;
+    }
+
     /** Default and maximum scene count of a history video (the 7-part structure below is laid out for 34). */
     static final int HISTORY_SCENES = MAX_SCENES;
 
@@ -491,15 +545,18 @@ final class AgentPrompts {
                   - REQUIRED second search (in Vietnamese, e.g. "tượng <name> đền thờ"): look up how each main figure is traditionally depicted in Vietnam (temple statues, worship portraits,
                     famous monuments: pose, beard, headwear, robe or armour colours, weapon, mount, emblem), and the real
                     clothing, armour, weapons, ships and buildings of that century for both sides.
-                  - Use what you learn only as WORDS in styleBible and the prompts. Do not download or copy images, and
-                    do not describe one specific modern artwork or film still: create your own look from the facts.
+                  - Use what you learn only as WORDS in styleBible and the prompts. Do not describe one specific modern
+                    artwork or film still: create your own look from the facts. (Modern wars: see REAL PHOTOS below.)
 
                 Write ./storyboard.json (overwrite it) as one JSON object:
                 {
+                  "modern": false,
                   "styleBible": "...",
                   "characters": [{"name": "...", "look": "..."}],
-                  "scenes": [{"narration": "...", "imagePrompt": "..."}]
+                  "scenes": [{"narration": "...", "imagePrompt": "...",
+                              "photoUrl": "...", "photoPage": "..."}]
                 }
+                """ + MODERN_PHOTOS + """
 
                 characters: the 1-4 most important recurring figures (main heroes first, then the main enemy commander if
                 he appears often). name = exactly as written in styleBible and the "Characters:" lines (correct
@@ -764,7 +821,13 @@ final class AgentPrompts {
             refs.append("     - STYLE ANCHOR (existing scene of this video; copy its art style): ")
                     .append(styleImg.toAbsolutePath()).append('\n');
         }
-        // 2) Characters that appear in this scene.
+        // 2) Modern history: the real photo of this moment.
+        Path photo = scenePhoto(projectDir, s);
+        if (photo != null) {
+            refs.append("     - PHOTO REFERENCE (real historical photo of this moment): ")
+                    .append(photo.toAbsolutePath()).append('\n');
+        }
+        // 3) Characters that appear in this scene.
         for (CharacterRef c : sceneCharacters(p, s)) {
             refs.append("     - CHARACTER ").append(c.name).append(": ")
                     .append(projectDir.resolve("assets").resolve(c.file).toAbsolutePath()).append('\n');
@@ -774,10 +837,11 @@ final class AgentPrompts {
                    the rest of the video (in video mode use "Ingredients to Video"; in image mode use the add-image /
                    reference button next to the prompt box). When the file chooser opens, call browser_file_upload with the
                    absolute path(s) below. If the tool accepts only a few images, keep the STYLE ANCHOR first, then the
-                   characters. If the current mode really has no way to attach images, continue with text only and
-                   mention it in your final message.
+                   PHOTO REFERENCE, then the characters. If the current mode really has no way to attach images, continue
+                   with text only and mention it in your final message.
                 %s""".formatted(refs);
-        String matchLine = refs.isEmpty() ? "" : (hasStyle
+        String photoLine = photo == null ? "" : "\n" + PHOTO_RULE + "\n";
+        String matchLine = photoLine + (refs.isEmpty() ? "" : hasStyle
                 ? "\nSTYLE MATCH (important): the new image must look like it was drawn by the same artist as the style"
                   + " anchor image: same medium, same colour palette (do not introduce new colours), same line work,"
                   + " same paper/background and lighting. Keep each character's face, hair and outfit exactly as in their"
@@ -854,6 +918,15 @@ final class AgentPrompts {
             uploads.append("   - CHARACTER ").append(c.name).append(": ")
                     .append(projectDir.resolve("assets").resolve(c.file).toAbsolutePath()).append('\n');
         }
+        // Modern history: each scene's real photo (one photo may serve several scenes: upload it once).
+        java.util.LinkedHashMap<Path, String> photos = new java.util.LinkedHashMap<>();
+        for (Scene s : scenes) {
+            Path ph = scenePhoto(projectDir, s);
+            if (ph != null) photos.putIfAbsent(ph.toAbsolutePath(), "PHOTO " + (photos.size() + 1));
+        }
+        for (var e : photos.entrySet()) {
+            uploads.append("   - ").append(e.getValue()).append(" (real historical photo): ").append(e.getKey()).append('\n');
+        }
 
         StringBuilder list = new StringBuilder();
         int n = 0;
@@ -861,12 +934,16 @@ final class AgentPrompts {
             n++;
             StringBuilder names = new StringBuilder();
             for (CharacterRef c : sceneCharacters(p, s)) names.append(names.isEmpty() ? "" : ", ").append(c.name);
+            Path ph = scenePhoto(projectDir, s);
+            String photoName = ph == null ? null : photos.get(ph.toAbsolutePath());
             list.append("SCENE ").append(n).append("/").append(scenes.size()).append("  (save as ").append(targets.get(s.id)).append(")\n")
                     .append("  Reference images to attach: ")
                     .append(anchor != null ? "STYLE ANCHOR" : n == 1 ? "(none yet)" : "the first image generated in this session (as style anchor)")
+                    .append(photoName == null ? "" : " + " + photoName + " (as the PHOTO REFERENCE)")
                     .append(names.isEmpty() ? "" : " + characters: " + names).append('\n')
                     .append("  Prompt (use exactly the text between the lines):\n  ---\n")
                     .append(imagePrompt(p, s)).append('\n')
+                    .append(photoName == null ? "" : PHOTO_RULE + "\n")
                     .append(anchor != null || n > 1
                             ? "STYLE MATCH (important): same artist as the style anchor: same medium, same colour palette (no new colours), "
                               + "same line work, same paper/background and lighting. Keep each character's face, hair and outfit exactly as in "

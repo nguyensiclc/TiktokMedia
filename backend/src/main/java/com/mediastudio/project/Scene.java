@@ -22,6 +22,13 @@ public class Scene {
 
     /** Prompt used to generate the visual on Google Flow / Canva. */
     public String imagePrompt = "";
+    /**
+     * Modern history: a real photo of this moment found on the web (file inside assets/), sent to the image
+     * generator as a reference so the new picture keeps real details (uniforms, weapons, vehicles, places).
+     */
+    public String refPhoto;
+    /** Web page the reference photo came from (credit / check). */
+    public String refPhotoSource;
     /** File name inside assets/ (image or video). */
     public String mediaFile;
     /** Where the media came from: flow, canva, upload. */

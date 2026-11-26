@@ -33,10 +33,12 @@ public class AgentService {
     private final SettingsService settings;
 
     private final FfmpegService ffmpeg;
+    private final RefPhotoService refPhotos;
 
     public AgentService(ClaudeCli claude, McpConfigWriter mcp, ProjectService projects,
-                        JobService jobs, SettingsService settings, FfmpegService ffmpeg) {
+                        JobService jobs, SettingsService settings, FfmpegService ffmpeg, RefPhotoService refPhotos) {
         this.ffmpeg = ffmpeg;
+        this.refPhotos = refPhotos;
         this.claude = claude;
         this.mcp = mcp;
         this.projects = projects;
@@ -204,10 +206,17 @@ public class AgentService {
             if (!arr.isArray() || arr.isEmpty()) throw new IOException("storyboard.json không hợp lệ");
             List<Scene> scenes = new ArrayList<>();
             boolean drama = "drama".equals(p.niche);
+            // Modern history only: real photos the storyboard found, downloaded below as image references.
+            boolean modern = history && root.path("modern").asBoolean(false);
+            Map<String, RefPhotoService.Want> photoWants = new LinkedHashMap<>();
             for (JsonNode n : arr) {
                 Scene s = new Scene();
                 s.narration = n.path("narration").asText("");
                 s.imagePrompt = n.path("imagePrompt").asText("");
+                if (modern) {
+                    var w = new RefPhotoService.Want(n.path("photoUrl").asText(""), n.path("photoPage").asText(""));
+                    if (!w.isEmpty()) photoWants.put(s.id, w);
+                }
                 if (drama) {
                     String who = n.path("speaker").asText("").trim();
                     s.speaker = who.isEmpty() ? null : who.equalsIgnoreCase(Scene.SCREEN_TEXT) ? Scene.SCREEN_TEXT : who;
@@ -218,6 +227,14 @@ public class AgentService {
                     else if (s.narration.isBlank()) s.duration = 2.5;
                 }
                 scenes.add(s);
+            }
+            if (!append) {
+                // The old scenes go away: so do their downloaded reference photos.
+                for (Scene old : projects.get(projectId).scenes) {
+                    if (old.refPhoto != null && !old.refPhoto.isBlank()) {
+                        Files.deleteIfExists(dir.resolve("assets").resolve(old.refPhoto));
+                    }
+                }
             }
             projects.mutate(projectId, pr -> {
                 pr.topic = topicToStore;
@@ -271,6 +288,26 @@ public class AgentService {
                 long texts = scenes.stream().filter(Scene::isScreenText).count();
                 ctx.log("  " + lines + " câu thoại · " + texts + " chữ trên màn hình · "
                         + (scenes.size() - lines - texts) + " shot không lời · " + projects.get(projectId).cast.size() + " vai có giọng");
+            }
+            if (history) {
+                ctx.log(!modern ? "  Lịch sử xa xưa (chưa có ảnh chụp): bỏ qua bước tìm ảnh thật"
+                        : photoWants.isEmpty() ? "  Lịch sử hiện đại: không tìm được ảnh thật chắc chắn, uy tín nào — mọi cảnh tạo từ mô tả"
+                        : "  Lịch sử hiện đại: Claude tìm được ảnh thật cho " + photoWants.size() + " cảnh, đang kiểm tra nguồn");
+            }
+            if (!photoWants.isEmpty()) {
+                Map<String, Integer> nums = new HashMap<>();
+                List<Scene> all = projects.get(projectId).scenes;
+                for (int i = 0; i < all.size(); i++) nums.put(all.get(i).id, i + 1);
+                Map<String, RefPhotoService.Saved> got = refPhotos.fetch(projectId, photoWants, nums, ctx);
+                projects.mutate(projectId, pr -> {
+                    for (var e : got.entrySet()) {
+                        Scene x = pr.scenes.stream().filter(sc -> sc.id.equals(e.getKey())).findFirst().orElse(null);
+                        if (x == null) continue;
+                        x.refPhoto = e.getValue().file();
+                        x.refPhotoSource = e.getValue().source();
+                    }
+                });
+                ctx.log("  ✔ " + got.size() + " cảnh dùng ảnh thật đã kiểm tra nguồn; các cảnh khác tạo ảnh chỉ từ mô tả");
             }
             long made = projects.get(projectId).characters.stream().filter(c -> c.auto && c.file == null).count();
             if (made > 0) ctx.log("  + " + made + " nhân vật chính (bấm \"Tạo chân dung\" ở mục Nhân vật để vẽ ảnh tham chiếu)");

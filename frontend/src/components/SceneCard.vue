@@ -21,6 +21,11 @@ function setSpeaker(v) {
 const emit = defineEmits(['change', 'remove', 'move', 'flow', 'canva', 'upload', 'clear', 'ref'])
 
 const mediaUrl = computed(() => props.scene.mediaFile && fileUrl(props.projectId, 'assets', props.scene.mediaFile, props.version))
+/** Modern history: the real photo found on the web for this scene, attached as a reference when generating. */
+const refPhotoUrl = computed(() => props.scene.refPhoto && fileUrl(props.projectId, 'assets', props.scene.refPhoto, props.version))
+function dropRefPhoto() {
+  emit('clear', 'refPhoto')
+}
 
 function pick(kind, accept) {
   const input = document.createElement('input')
@@ -74,6 +79,13 @@ const sourceLabel = { flow: 'Google Flow', canva: 'Canva', upload: 'Tải lên' 
         <label>Prompt hình ảnh (Flow / Canva)</label>
         <textarea v-model="scene.imagePrompt" rows="2" @input="emit('change')" />
       </div>
+      <div v-if="refPhotoUrl" class="row photo-ref">
+        <a :href="refPhotoUrl" target="_blank" rel="noopener"><img :src="refPhotoUrl" alt="Ảnh thật tham chiếu" /></a>
+        <span class="muted grow">Ảnh thật tham chiếu (gửi kèm khi tạo ảnh Flow)
+          <a v-if="scene.refPhotoSource" :href="scene.refPhotoSource" target="_blank" rel="noopener noreferrer">· nguồn</a>
+        </span>
+        <button class="small" title="Không dùng ảnh thật này làm tham chiếu" @click="dropRefPhoto">Bỏ ảnh thật</button>
+      </div>
 
       <div class="row actions">
         <button class="small" :disabled="busy" title="Tạo lại ảnh cảnh này bằng Google Flow" @click="emit('flow', 'image')"><Icon name="flow" /> Flow ảnh</button>
@@ -110,6 +122,8 @@ const sourceLabel = { flow: 'Google Flow', canva: 'Canva', upload: 'Tải lên' 
 audio { height: 30px; min-width: 160px; }
 .dur { width: 70px; }
 .speaker { gap: 8px; align-items: center; }
+.photo-ref { gap: 8px; align-items: center; margin-top: 4px; font-size: 12px; }
+.photo-ref img { width: 64px; height: 40px; object-fit: cover; border-radius: 4px; display: block; }
 .speaker select { width: auto; min-width: 180px; }
 @media (max-width: 820px) {
   .scene { flex-direction: column; gap: 10px; }

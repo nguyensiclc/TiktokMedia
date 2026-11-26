@@ -165,6 +165,8 @@ public class FlowExtService {
                 continue;
             }
             if (anchorFile != null) t.refs.add(ref(s.projectId, anchorFile, "STYLE ANCHOR"));
+            boolean photo = AgentPrompts.scenePhoto(projects.dir(s.projectId), sc) != null;
+            if (photo) t.refs.add(ref(s.projectId, sc.refPhoto, "PHOTO REFERENCE"));
             for (CharacterRef c : AgentPrompts.sceneCharacters(p, sc)) t.refs.add(ref(s.projectId, c.file, "CHARACTER " + c.name));
             StringBuilder prompt = new StringBuilder(AgentPrompts.imagePrompt(p, sc));
             if (!t.refs.isEmpty()) {
@@ -175,6 +177,7 @@ public class FlowExtService {
                     prompt.append("Same artist as the style anchor: same medium, colour palette, line work and lighting, but a"
                             + " completely new composition. ");
                 }
+                if (photo) prompt.append(AgentPrompts.PHOTO_RULE).append(' ');
                 prompt.append("Keep each character's face, hair and outfit exactly as in their reference image.");
             }
             t.prompt = prompt.toString();

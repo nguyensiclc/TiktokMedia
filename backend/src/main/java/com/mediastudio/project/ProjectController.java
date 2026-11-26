@@ -208,12 +208,15 @@ public class ProjectController {
         });
     }
 
-    /** kind=media|audio */
+    /** kind=media|audio|refPhoto (the real photo used as an image reference in modern history) */
     @DeleteMapping("/{id}/scenes/{sceneId}/media")
     public Project clearMedia(@PathVariable String id, @PathVariable String sceneId, @RequestParam String kind) {
         return projects.mutate(id, p -> {
             Scene s = p.scene(sceneId);
-            if ("audio".equals(kind)) {
+            if ("refPhoto".equals(kind)) {
+                s.refPhoto = null;
+                s.refPhotoSource = null;
+            } else if ("audio".equals(kind)) {
                 s.audioFile = null;
                 s.audioDuration = null;
             } else {
@@ -234,6 +237,8 @@ public class ProjectController {
             Scene b = new Scene();
             b.narration = a.narration;
             b.imagePrompt = a.imagePrompt;
+            b.refPhoto = a.refPhoto;
+            b.refPhotoSource = a.refPhotoSource;
             b.duration = a.duration;
             b.customDuration = a.customDuration;
             b.mediaSource = a.mediaSource;
