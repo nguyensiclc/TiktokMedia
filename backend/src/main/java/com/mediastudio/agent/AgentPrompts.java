@@ -438,9 +438,16 @@ final class AgentPrompts {
               - ONLY WHEN SURE: add a photo to a scene only if all of these are true:
                   * you fetched the page and its caption or text says the photo shows THIS exact event, person, place
                     or equipment (not just the same war or the same kind of thing);
+                  * the photo shows the same ACTION as the scene: e.g. guns being hauled through the jungle are NOT a
+                    reference for guns firing; generic "porters" are NOT a reference for bicycle porters unless the
+                    caption or the photo shows bicycles; generic "soldiers at the battle" are NOT a reference for one
+                    named attack or hill;
                   * it is a real photo of that time (no maps, posters, documents, charts, paintings, drawings,
-                    re-enactments, film stills, modern tourist photos, AI images);
+                    re-enactments, film stills, modern tourist photos, AI images), at least 300 px on each side;
                   * you saw the direct image address in that page.
+                FINAL CHECK before writing the file: for every photo you kept, ask "does the caption prove this photo
+                shows what this scene's narration describes?" If you would call it a weak, partial, loose, generic or
+                "probably" match, or would want to warn the user about it, REMOVE it: do not keep it with a warning.
                 If anything is uncertain, the photo is not found, or the source is not reputable: leave photoUrl and
                 photoPage OUT for that scene. Many scenes will have no photo and that is fine; a wrong photo is far
                 worse than none. Never pick a "close enough" photo, never guess or build an address.
